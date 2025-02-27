@@ -8,7 +8,6 @@ const BlogPostPage = () => {
   const [loading, setLoading] = useState(true);
 
   // In a real application, you would fetch post data from an API or database
-  // For now, we'll use dummy data
   useEffect(() => {
     // Simulating API call
     setTimeout(() => {
@@ -25,21 +24,33 @@ const BlogPostPage = () => {
           avatar: "https://via.placeholder.com/100"
         },
         thumbnail: "https://via.placeholder.com/1200x600",
-        content: `
-## Introduction
-
-Building scalable APIs is a critical skill for modern full-stack engineers. In this article, I'll share my approach to creating robust and maintainable Node.js APIs using Express and MongoDB that can scale with your application needs.
-
-### Why Node.js, Express, and MongoDB?
-
-The MERN stack (MongoDB, Express, React, Node.js) has become one of the most popular technology stacks for building modern web applications. Its JavaScript-everywhere paradigm simplifies development and enables engineers to work seamlessly across the entire stack.
-
-## Setting Up the Project Structure
-
-A well-organized project structure is critical for maintainability as your application grows. Here's my recommended structure for a scalable API:
-
-\`\`\`
-/project-root
+        content: [
+          {
+            type: "paragraph",
+            content: "Building scalable APIs is a critical skill for modern full-stack engineers. In this article, I'll share my approach to creating robust and maintainable Node.js APIs using Express and MongoDB that can scale with your application needs."
+          },
+          {
+            type: "heading",
+            level: 2,
+            content: "Why Node.js, Express, and MongoDB?"
+          },
+          {
+            type: "paragraph",
+            content: "The MERN stack (MongoDB, Express, React, Node.js) has become one of the most popular technology stacks for building modern web applications. Its JavaScript-everywhere paradigm simplifies development and enables engineers to work seamlessly across the entire stack."
+          },
+          {
+            type: "heading",
+            level: 2,
+            content: "Setting Up the Project Structure"
+          },
+          {
+            type: "paragraph",
+            content: "A well-organized project structure is critical for maintainability as your application grows. Here's my recommended structure for a scalable API:"
+          },
+          {
+            type: "code",
+            language: "text",
+            content: `/project-root
   /src
     /config       # Configuration files
     /controllers  # Request handlers
@@ -52,17 +63,26 @@ A well-organized project structure is critical for maintainability as your appli
     server.js     # Server entry point
   /tests          # Test files
   .env            # Environment variables
-  package.json
-\`\`\`
-
-## Database Design for Scalability
-
-When working with MongoDB, it's important to design your schemas with scaling in mind. Here are some key principles:
-
-### 1. Proper Indexing
-
-```javascript
-// Example of creating indexes in MongoDB
+  package.json`
+          },
+          {
+            type: "heading",
+            level: 2,
+            content: "Database Design for Scalability"
+          },
+          {
+            type: "paragraph",
+            content: "When working with MongoDB, it's important to design your schemas with scaling in mind. Here are some key principles:"
+          },
+          {
+            type: "heading",
+            level: 3,
+            content: "1. Proper Indexing"
+          },
+          {
+            type: "code",
+            language: "javascript",
+            content: `// Example of creating indexes in MongoDB
 const UserSchema = new mongoose.Schema({
   email: { 
     type: String, 
@@ -78,23 +98,39 @@ const UserSchema = new mongoose.Schema({
 });
 
 // Create compound index for frequently queried fields
-UserSchema.index({ createdAt: 1, role: 1 });
-```
-
-### 2. Data Modeling and Relationships
-
-MongoDB is fundamentally different from relational databases, and proper data modeling can significantly impact performance. Consider these patterns:
-
-- **Embedding documents** for data frequently accessed together
-- **Using references** for relationships with large or frequently changing data
-- **Denormalization** for read-heavy operations
-
-## Performance Optimization Techniques
-
-### Implementing Pagination
-
-```javascript
-// Example pagination implementation
+UserSchema.index({ createdAt: 1, role: 1 });`
+          },
+          {
+            type: "heading",
+            level: 3,
+            content: "2. Data Modeling and Relationships"
+          },
+          {
+            type: "paragraph",
+            content: "MongoDB is fundamentally different from relational databases, and proper data modeling can significantly impact performance. Consider these patterns:"
+          },
+          {
+            type: "list",
+            items: [
+              "Embedding documents for data frequently accessed together",
+              "Using references for relationships with large or frequently changing data",
+              "Denormalization for read-heavy operations"
+            ]
+          },
+          {
+            type: "heading",
+            level: 2,
+            content: "Performance Optimization Techniques"
+          },
+          {
+            type: "heading",
+            level: 3,
+            content: "Implementing Pagination"
+          },
+          {
+            type: "code",
+            language: "javascript",
+            content: `// Example pagination implementation
 router.get('/api/products', async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -116,15 +152,21 @@ router.get('/api/products', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
-```
-
-### Caching Strategies
-
-Implementing caching is essential for high-traffic APIs. Redis is an excellent choice for this:
-
-```javascript
-// Example of Redis caching middleware
+});`
+          },
+          {
+            type: "heading",
+            level: 3,
+            content: "Caching Strategies"
+          },
+          {
+            type: "paragraph",
+            content: "Implementing caching is essential for high-traffic APIs. Redis is an excellent choice for this:"
+          },
+          {
+            type: "code",
+            language: "javascript",
+            content: `// Example of Redis caching middleware
 const redisClient = redis.createClient();
 
 const cacheMiddleware = (duration) => {
@@ -148,106 +190,26 @@ const cacheMiddleware = (duration) => {
 };
 
 // Using the cache middleware
-app.get('/api/products', cacheMiddleware(300), productController.getAllProducts);
-```
-
-## Error Handling and Logging
-
-Proper error handling is crucial for production applications. I recommend:
-
-1. Custom error classes
-2. Central error handling middleware
-3. Structured logging
-
-```javascript
-// Custom error class
-class APIError extends Error {
-  constructor(message, statusCode, details = {}) {
-    super(message);
-    this.statusCode = statusCode;
-    this.details = details;
-    this.timestamp = new Date();
-  }
-}
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  const statusCode = err.statusCode || 500;
-  const errorResponse = {
-    error: {
-      message: err.message || 'Internal Server Error',
-      ...(process.env.NODE_ENV === 'development' && { 
-        stack: err.stack,
-        details: err.details 
-      })
-    }
-  };
-  
-  // Log the error
-  logger.error({
-    message: \`\${statusCode} - \${err.message}\`,
-    path: req.path,
-    method: req.method,
-    ip: req.ip,
-    ...(err.details && { details: err.details })
-  });
-  
-  res.status(statusCode).json(errorResponse);
-});
-```
-
-## Authentication and Authorization
-
-For secure APIs, implement JWT-based authentication with role-based access control:
-
-```javascript
-// Authentication middleware
-const authenticate = async (req, res, next) => {
-  try {
-    const token = req.headers.authorization?.split(' ')[1];
-    
-    if (!token) {
-      throw new APIError('Authentication required', 401);
-    }
-    
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.id).select('-password');
-    
-    if (!user) {
-      throw new APIError('User not found', 404);
-    }
-    
-    req.user = user;
-    next();
-  } catch (error) {
-    next(new APIError('Invalid token', 401));
-  }
-};
-
-// Authorization middleware
-const authorize = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.user.role)) {
-      return next(
-        new APIError('Not authorized to access this route', 403)
-      );
-    }
-    next();
-  };
-};
-
-// Using the middleware
-router.post('/api/admin/users', authenticate, authorize('admin'), userController.createUser);
-```
-
-## Conclusion
-
-Building scalable Node.js APIs requires careful planning, proper architecture, and implementation of best practices. By following the patterns and techniques covered in this article, you'll be well-equipped to create robust APIs that can handle growth and maintain performance under load.
-
-Remember that scalability is a journey, not a destination. Continuously monitor your application's performance, refine your approach, and adapt to changing requirements.
-
-In my next article, I'll dive deeper into implementing real-time features with Socket.io to complement your REST API. Stay tuned!
-        `,
+app.get('/api/products', cacheMiddleware(300), productController.getAllProducts);`
+          },
+          {
+            type: "heading",
+            level: 2,
+            content: "Conclusion"
+          },
+          {
+            type: "paragraph",
+            content: "Building scalable Node.js APIs requires careful planning, proper architecture, and implementation of best practices. By following the patterns and techniques covered in this article, you'll be well-equipped to create robust APIs that can handle growth and maintain performance under load."
+          },
+          {
+            type: "paragraph",
+            content: "Remember that scalability is a journey, not a destination. Continuously monitor your application's performance, refine your approach, and adapt to changing requirements."
+          },
+          {
+            type: "paragraph",
+            content: "In my next article, I'll dive deeper into implementing real-time features with Socket.io to complement your REST API. Stay tuned!"
+          }
+        ],
         tags: ["Node.js", "Express", "MongoDB", "API Development", "Backend"],
         relatedPosts: [
           {
@@ -276,36 +238,43 @@ In my next article, I'll dive deeper into implementing real-time features with S
     }, 500);
   }, [slug]);
 
-  // Function to parse markdown content with code blocks
-  const renderContent = (content) => {
-    // This is a simple implementation. In a real app, you'd use a library like react-markdown
-    const sections = content.split('\n## ');
-    
-    return (
-      <div className="markdown-content">
-        {sections.map((section, index) => {
-          if (index === 0) {
-            return <div key={index} dangerouslySetInnerHTML={{ __html: section.replace(/\n/g, '<br/>') }} />;
-          }
-          
-          const sectionTitle = section.split('\n')[0];
-          const sectionContent = section.split('\n').slice(1).join('\n');
-          
-          return (
-            <div key={index} className="mt-8">
-              <h2 className="text-2xl font-bold mb-4">{sectionTitle}</h2>
-              <div dangerouslySetInnerHTML={{ 
-                __html: sectionContent
-                  .replace(/###\s(.*)/g, '<h3 class="text-xl font-semibold mt-6 mb-3">$1</h3>')
-                  .replace(/```(javascript|)\n([\s\S]*?)```/g, '<pre class="bg-gray-900 p-4 rounded-md overflow-x-auto my-4"><code>$2</code></pre>')
-                  .replace(/`([^`]+)`/g, '<code class="bg-gray-900 px-1 py-0.5 rounded text-sm">$1</code>')
-                  .replace(/\n/g, '<br/>')
-              }} />
-            </div>
-          );
-        })}
-      </div>
-    );
+  // Function to render different content blocks
+  const renderContentBlock = (block, index) => {
+    switch (block.type) {
+      case 'paragraph':
+        return <p key={index} className="mb-4 text-gray-300 leading-relaxed">{block.content}</p>;
+      
+      case 'heading':
+        switch (block.level) {
+          case 2:
+            return <h2 key={index} className="text-2xl font-bold mt-8 mb-4">{block.content}</h2>;
+          case 3:
+            return <h3 key={index} className="text-xl font-semibold mt-6 mb-3">{block.content}</h3>;
+          default:
+            return <h4 key={index} className="text-lg font-medium mt-4 mb-2">{block.content}</h4>;
+        }
+      
+      case 'code':
+        return (
+          <div key={index} className="my-4">
+            <pre className="bg-gray-900 p-4 rounded-md overflow-x-auto">
+              <code>{block.content}</code>
+            </pre>
+          </div>
+        );
+      
+      case 'list':
+        return (
+          <ul key={index} className="list-disc list-inside my-4 space-y-2 text-gray-300">
+            {block.items.map((item, i) => (
+              <li key={i} className="leading-relaxed">{item}</li>
+            ))}
+          </ul>
+        );
+      
+      default:
+        return null;
+    }
   };
 
   if (loading) {
@@ -326,7 +295,7 @@ In my next article, I'll dive deeper into implementing real-time features with S
         <div className="w-full flex items-center justify-center min-h-screen">
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-4">Article Not Found</h2>
-            <p className="text-gray-400 mb-6">The article you're looking for doesn't exist or has been removed.</p>
+            <p className="text-gray-400 mb-6">The article you&apos;re looking for doesn&apos;t exist or has been removed.</p>
             <Link 
               to="/blog" 
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition-colors"
@@ -395,7 +364,7 @@ In my next article, I'll dive deeper into implementing real-time features with S
           <div className="max-w-4xl mx-auto">
             {/* Article Body */}
             <div className="prose prose-lg prose-invert max-w-none">
-              {renderContent(post.content)}
+              {post.content.map((block, index) => renderContentBlock(block, index))}
             </div>
 
             {/* Author Bio */}
@@ -482,7 +451,7 @@ In my next article, I'll dive deeper into implementing real-time features with S
             </div>
 
             {/* Comments Section - You could integrate with Disqus or a custom solution */}
-            <div className="mt-16">
+            {/* <div className="mt-16">
               <h3 className="text-2xl font-bold mb-8">Comments</h3>
               <div className="bg-gray-800 rounded-lg p-6 text-center">
                 <p className="text-gray-300 mb-4">
@@ -494,7 +463,7 @@ In my next article, I'll dive deeper into implementing real-time features with S
                   Sign in to comment
                 </button>
               </div>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>
