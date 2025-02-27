@@ -21,7 +21,7 @@ const SideBar = () => {
       icon: <MdWorkOutline />
     },
     {
-      list: 'Store - coming soon',
+      list: 'Store',
       url: "/store",
       icon: <MdOutlineStorefront />
     },
@@ -31,7 +31,7 @@ const SideBar = () => {
       icon: <MdOutlineTravelExplore />
     },
     {
-      list: 'Blog - coming soon',
+      list: 'Blog',
       url: "/blog",
       icon: <IoNewspaperOutline />
     },
