@@ -16,9 +16,8 @@ import BlogPostPage from "./pages/blog-post.page";
 
 // Admin pages
 import AdminProductDashboard from "./pages/admin/admin-product-dashboard.page";
-// You would import other admin pages as they're created
 // import AdminDashboard from "./pages/admin/admin-dashboard.page";
-// import AdminBlogDashboard from "./pages/admin/admin-blog-dashboard.page";
+import AdminBlogDashboard from "./pages/admin/admin-blog-dashboard.page";
 // import AdminMediaLibrary from "./pages/admin/admin-media-library.page";
 // import AdminSettings from "./pages/admin/admin-settings.page";
 
@@ -47,7 +46,7 @@ function App() {
         {/* Admin Routes - In a real app, these would be wrapped with AuthGuard */}
         {/* <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} /> */}
         <Route path="/admin/products" element={<AdminProductDashboard />} />
-        {/* <Route path="/admin/blog" element={<AuthGuard><AdminBlogDashboard /></AuthGuard>} /> */}
+        <Route path="/admin/blog" element={<AdminBlogDashboard />} />
         {/* <Route path="/admin/media" element={<AuthGuard><AdminMediaLibrary /></AuthGuard>} /> */}
         {/* <Route path="/admin/settings" element={<AuthGuard><AdminSettings /></AuthGuard>} /> */}
         
