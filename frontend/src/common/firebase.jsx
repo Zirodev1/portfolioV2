@@ -3,7 +3,7 @@ import { getAuth, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyAuGmQUbTRu_PsJe9bXX2YL_rjUcpo7rYY",
+  apiKey: "",
   authDomain: "writter-9b16d.firebaseapp.com",
   projectId: "writter-9b16d",
   storageBucket: "writter-9b16d.appspot.com",
