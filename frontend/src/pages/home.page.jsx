@@ -1,12 +1,19 @@
+import { useState, useEffect } from 'react';
 import { Link } from "react-router-dom";
 import SideBar from "../components/sidebar.component";
-import BlogSection from "../components/BlogSection";
 import ProductsSection from "../components/ProductsSection";
 import FeaturedWorkSection from "../components/FeaturedWorkSection";
 import TestimonialsSection from "../components/TestimonialsSection";
 import profilePNG from '../imgs/about.png';
+import { avatarPlaceholder, thumbnailPlaceholder } from '../assets/placeholders';
+import axios from 'axios';
+import SkillsSection from "../components/SkillsSection";
+import EmptyBlogState from "../components/EmptyBlogState";
 
 const HomePage = () => {
+  const [recentBlogPosts, setRecentBlogPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
   // Testimonials data
   const testimonials = [
     {
@@ -14,28 +21,28 @@ const HomePage = () => {
       author: "John Smith",
       role: "CEO",
       company: "MINDFUL",
-      avatar: "https://via.placeholder.com/60"
+      avatar: avatarPlaceholder
     },
     {
       quote: "I can't recommend Jackson enough. He brought a fresh perspective to our project and consistently delivered designs that were not only visually appealing but also aligned with our project goals. His collaborative approach and commitment to excellence make him an invaluable asset to any design endeavor.",
       author: "Stacy Sampson",
       role: "LEAD ENGINEER",
       company: "LUXE ARCHITECTS",
-      avatar: "https://via.placeholder.com/60"
+      avatar: avatarPlaceholder
     },
     {
       quote: "Jackson effortlessly translated our concepts into visually stunning designs that not only captured our brand essence but also resonated with our target audience. His attention to detail and innovative thinking truly set him apart.",
       author: "Angelina Corales",
       role: "HEAD OF DESIGN",
       company: "PEDALS",
-      avatar: "https://via.placeholder.com/60"
+      avatar: avatarPlaceholder
     },
     {
       quote: "Jackson is a design wizard! He took our vague ideas and transformed them into sleek, intuitive designs that exceeded our expectations. His ability to balance creativity with practicality resulted in a product that's both aesthetically pleasing and user-friendly.",
       author: "Jackie Johnson",
       role: "STAFF PRODUCT DESIGNER",
       company: "NIKE",
-      avatar: "https://via.placeholder.com/60"
+      avatar: avatarPlaceholder
     }
   ];
 
@@ -47,7 +54,7 @@ const HomePage = () => {
       category: "E-Commerce",
       title: "Shopify Store Redesign",
       description: "A complete redesign of an e-commerce platform with improved user flow and conversion optimization.",
-      thumbnail: "https://via.placeholder.com/600x400",
+      thumbnail: thumbnailPlaceholder,
       accentColor: "blue"
     },
     {
@@ -55,7 +62,7 @@ const HomePage = () => {
       category: "SaaS Dashboard",
       title: "Analytics Platform",
       description: "A dashboard interface design for a data analytics platform focusing on data visualization.",
-      thumbnail: "https://via.placeholder.com/600x400",
+      thumbnail: thumbnailPlaceholder,
       accentColor: "purple"
     },
     {
@@ -63,37 +70,18 @@ const HomePage = () => {
       category: "Mobile App",
       title: "Fitness Tracker",
       description: "A mobile application designed to help users track their fitness goals and progress.",
-      thumbnail: "https://via.placeholder.com/600x400",
+      thumbnail: thumbnailPlaceholder,
       accentColor: "green"
     }
   ];
 
-  // Blog post data
-  const featuredPosts = [
-    {
-      slug: "ux-vs-ui",
-      category: "DESIGN",
-      title: "What's The Difference Between UX And UI?",
-      readTime: "4 min read",
-      description: "Understanding the key differences between UX and UI design and how they work together to create exceptional digital experiences.",
-      thumbnail: "https://via.placeholder.com/600x400"
-    },
-    {
-      slug: "take-it-one-step",
-      category: "PRODUCTIVITY",
-      title: "Take It One Step At A Time",
-      readTime: "3 min",
-      description: "Breaking down complex projects into manageable steps can boost your productivity and reduce overwhelm.",
-      thumbnail: "https://via.placeholder.com/600x400"
-    },
-    {
-      slug: "how-to-design-website",
-      category: "DESIGN",
-      title: "How Do I Design A Website?",
-      readTime: "4 min read",
-      description: "A complete guide to the website design process from planning and wireframing to design and implementation.",
-      thumbnail: "https://via.placeholder.com/600x400"
-    }
+  // Blog posts data
+  const postThumbnails = [
+    "/assets/images/blog-1.jpg",
+    "/assets/images/blog-2.jpg",
+    "/assets/images/blog-3.jpg",
+    "/assets/images/blog-4.jpg",
+    "/assets/images/blog-5.jpg",
   ];
 
   // Products data
@@ -104,7 +92,7 @@ const HomePage = () => {
       title: "Compo Portfolio Template",
       price: 69,
       description: "A minimal and professional portfolio template for designers and creatives.",
-      thumbnail: "https://via.placeholder.com/600x400"
+      thumbnail: thumbnailPlaceholder
     },
     {
       id: "capsule-blog",
@@ -112,19 +100,63 @@ const HomePage = () => {
       title: "Capsule Blog Template",
       price: 15,
       description: "A clean, customizable blog template powered by Notion and Super.",
-      thumbnail: "https://via.placeholder.com/600x400"
+      thumbnail: thumbnailPlaceholder
     }
   ];
+
+  // Fetch recent blog posts
+  useEffect(() => {
+    const fetchRecentPosts = async () => {
+      try {
+        console.log("Fetching recent blog posts (including drafts)");
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/blog`, {
+          params: {
+            // For testing, include all posts regardless of status
+            // status: 'published', 
+            limit: 3,
+            sort: 'createdAt,desc'
+          }
+        });
+
+        console.log('Blog API response data:', response.data);
+        console.log('Posts received:', response.data?.data?.length || 0);
+
+        if (response.data && response.data.success) {
+          setRecentBlogPosts(response.data.data);
+        } else {
+          console.error('Failed to fetch recent blog posts:', response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching recent blog posts:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchRecentPosts();
+  }, []);
+
+  // Format date for blog posts
+  const formatDate = (dateString) => {
+    if (!dateString) return '';
+    
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short', 
+      day: 'numeric'
+    });
+  };
 
   return (
     <div className="flex">
       <SideBar />
-      <div className="border-b w-full border-gray-700">
+      <div className="w-full min-h-screen">
         {/* Hero Section */}
         <div className="flex flex-col md:flex-row items-start justify-between p-10 md:p-16">
           <div className="max-w-2xl">
-            <h1 className="text-5xl font-bold mb-4">Hey, I&apos;m Jackson</h1>
-            <h2 className="text-3xl font-bold text-gray-300 mb-6">Product Designer & No-Code Expert</h2>
+            <h1 className="text-5xl font-bold mb-4">Hey, I&apos;m Lee</h1>
+            <h2 className="text-3xl font-bold text-gray-300 mb-6">Full-Stack Expert</h2>
             <p className="text-gray-400 mb-8 text-lg leading-relaxed">
               I am a seasoned product designer with 5 years of experience specializing in SaaS solutions, 
               crafting user-centric experiences that drive innovation and efficiency.
@@ -142,7 +174,7 @@ const HomePage = () => {
                   </svg>
                 </div>
               </Link>
-              <Link to="#" className="text-gray-400 hover:text-white transition-colors">
+              <Link to="https://www.linkedin.com/in/lee-acevedo/" target="_blank" className="text-gray-400 hover:text-white transition-colors">
                 <div className="border border-gray-700 rounded-full p-3">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"></path>
@@ -195,8 +227,63 @@ const HomePage = () => {
         {/* My Products Section */}
         <ProductsSection products={featuredProducts} />
         
-        {/* Blog Section */}
-        <BlogSection featuredPosts={featuredPosts} />
+        {/* Skills Section */}
+        <SkillsSection />
+        
+        {/* Recent Blog Posts Section */}
+        <div className="p-10 md:p-16">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold">Recent Articles</h2>
+            <Link 
+              to="/blog" 
+              className="text-blue-400 hover:text-blue-300"
+            >
+              View All
+            </Link>
+          </div>
+          
+          {loading ? (
+            <div className="flex justify-center items-center h-40">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : recentBlogPosts && recentBlogPosts.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {recentBlogPosts.map((post, index) => (
+                <div key={post._id} className="bg-gray-800 rounded-lg overflow-hidden">
+                  <Link to={`/blog/${post.slug}`} className="block">
+                    <img 
+                      src={post.thumbnail || postThumbnails[index % postThumbnails.length]} 
+                      alt={post.title} 
+                      className="w-full h-40 object-cover"
+                    />
+                    <div className="p-4">
+                      <div className="flex items-center mb-2">
+                        <span className="text-xs bg-blue-600 text-white px-2 py-1 rounded-md mr-3">
+                          {post.category}
+                        </span>
+                        <span className="text-xs text-gray-400">
+                          {formatDate(post.publishDate || post.createdAt)}
+                        </span>
+                      </div>
+                      <h3 className="font-bold hover:text-blue-400 transition-colors line-clamp-2">
+                        {post.title}
+                      </h3>
+                      <p className="text-sm text-gray-400 mt-2 line-clamp-2">
+                        {post.excerpt}
+                      </p>
+                    </div>
+                  </Link>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyBlogState 
+              message="No blog posts yet" 
+              buttonText="Browse All Articles"
+              buttonLink="/blog"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

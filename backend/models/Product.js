@@ -18,15 +18,27 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Product description is required'],
     },
+    shortDescription: {
+      type: String,
+      maxlength: [200, 'Short description cannot be more than 200 characters']
+    },
     price: {
       type: Number,
       required: [true, 'Product price is required'],
       min: [0, 'Price cannot be negative'],
     },
+    salePrice: {
+      type: Number,
+      min: [0, 'Sale price cannot be negative']
+    },
+    onSale: {
+      type: Boolean,
+      default: false,
+    },
     category: {
       type: String,
       required: [true, 'Product category is required'],
-      enum: ['Templates', 'UI Kits', 'Notion', 'Framer', 'Figma'],
+      enum: ['Website Template', 'React Component', 'Full Stack App', 'UI Kit', 'Plugin', 'Other'],
     },
     platform: {
       type: String,
@@ -42,9 +54,31 @@ const productSchema = new mongoose.Schema(
     },
     thumbnail: {
       type: String,
-      required: [true, 'Thumbnail image is required'],
+      required: [true, 'Product thumbnail is required'],
     },
     images: [String], // Additional product images
+    downloadFile: {
+      key: String,       // S3 object key
+      filename: String,  // Original filename for display
+      size: Number,      // File size in bytes
+      contentType: String // MIME type
+    },
+    demoUrl: String,     // Live demo URL if available
+    features: [String],  // List of product features
+    technologies: [String], // Technologies used (React, Node, etc.)
+    status: {
+      type: String,
+      enum: ['draft', 'published', 'archived'],
+      default: 'draft'
+    },
+    downloads: {
+      type: Number,
+      default: 0
+    },
+    purchaseCount: {
+      type: Number,
+      default: 0
+    },
     details: {
       version: String,
       lastUpdated: Date,
@@ -67,11 +101,22 @@ const productSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
   }
 );
 
+// Add a virtual field for the current price (either sale price or regular price)
+productSchema.virtual('currentPrice').get(function() {
+  return this.onSale && this.salePrice ? this.salePrice : this.price;
+});
+
 // Create text indexes for search
-productSchema.index({ title: 'text', description: 'text', category: 'text' });
+productSchema.index({ 
+  title: 'text',
+  description: 'text',
+  technologies: 'text'
+});
 
 const Product = mongoose.model('Product', productSchema);
 

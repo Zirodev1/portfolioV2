@@ -15,7 +15,7 @@ const blogPostSchema = new mongoose.Schema(
       lowercase: true,
     },
     content: {
-      type: String,
+      type: mongoose.Schema.Types.Mixed,
       required: [true, 'Blog post content is required'],
     },
     excerpt: {
@@ -80,8 +80,46 @@ const blogPostSchema = new mongoose.Schema(
   }
 );
 
-// Create text indexes for search
-blogPostSchema.index({ title: 'text', content: 'text', tags: 'text' });
+// Create text indexes for search on safe fields only
+blogPostSchema.index({ title: 'text', tags: 'text' });
+
+// Add a custom text search method for content since it can be an object
+blogPostSchema.statics.searchByContent = async function(query) {
+  // First find posts with matching title or tags
+  const posts = await this.find({
+    $text: { $search: query }
+  });
+  
+  // Then filter posts with content containing the query if content is in EditorJS format
+  const contentMatches = await this.find().then(allPosts => {
+    return allPosts.filter(post => {
+      if (typeof post.content === 'string') {
+        return post.content.toLowerCase().includes(query.toLowerCase());
+      } else if (post.content && post.content.blocks) {
+        // Search through blocks of EditorJS content
+        return post.content.blocks.some(block => {
+          if (block.data && block.data.text) {
+            return block.data.text.toLowerCase().includes(query.toLowerCase());
+          }
+          return false;
+        });
+      }
+      return false;
+    });
+  });
+  
+  // Combine results and remove duplicates
+  const allMatches = [...posts, ...contentMatches];
+  const uniqueIds = new Set();
+  
+  return allMatches.filter(post => {
+    if (uniqueIds.has(post.id)) {
+      return false;
+    }
+    uniqueIds.add(post.id);
+    return true;
+  });
+};
 
 // Virtual field for formatted date
 blogPostSchema.virtual('formattedDate').get(function () {
@@ -97,7 +135,24 @@ blogPostSchema.virtual('formattedDate').get(function () {
 // Calculate read time before saving
 blogPostSchema.pre('save', function (next) {
   const wordsPerMinute = 200;
-  const wordCount = this.content.split(/\s+/).length;
+  
+  // Check if content is string or object (EditorJS format)
+  let wordCount = 0;
+  
+  if (typeof this.content === 'string') {
+    // If content is a string, count words directly
+    wordCount = this.content.split(/\s+/).length;
+  } else if (this.content && this.content.blocks) {
+    // If content is EditorJS format, extract text from blocks
+    wordCount = this.content.blocks.reduce((count, block) => {
+      // Count words in block content if it exists and is a string
+      if (block.data && block.data.text) {
+        return count + block.data.text.split(/\s+/).length;
+      }
+      return count;
+    }, 0);
+  }
+  
   const minutes = Math.ceil(wordCount / wordsPerMinute);
   
   this.readTime = `${minutes} min read`;

@@ -5,11 +5,19 @@ const {
   uploadMultipleFiles,
   deleteFile,
   getFiles,
+  getUploadUrl,
+  uploadImage
 } = require('../controllers/uploadController');
 const { protect, authorize } = require('../middleware/authMiddleware');
 const { upload, handleUploadError } = require('../middleware/uploadMiddleware');
 
-// All routes are protected for admin only
+// Public route for getting S3 upload URL
+router.get('/get-upload-url', getUploadUrl);
+
+// New route for uploading images through the backend
+router.post('/image', upload.single('image'), uploadImage);
+
+// All other routes are protected for admin only
 router.use(protect, authorize('admin'));
 
 // Get all uploaded files

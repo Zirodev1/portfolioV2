@@ -92,6 +92,13 @@ app.use('/api/blog', blogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
 
+// Log routes for debugging
+console.log('Registered routes:');
+console.log('- /api/products');
+console.log('- /api/blog');
+console.log('- /api/users');
+console.log('- /api/upload');
+
 // API health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'API is running' });

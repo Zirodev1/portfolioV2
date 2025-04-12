@@ -8,86 +8,66 @@ const { generateUniqueSlug } = require('../utils/slugify');
  */
 const getBlogPosts = async (req, res) => {
   try {
-    // Prepare query
-    let query = {};
+    const { category, limit = 10, status, sort } = req.query;
     
-    // Filter by status (public API should only get published posts)
-    if (req.user && req.user.role === 'admin') {
-      // Admin can see all posts including drafts
-      if (req.query.status && req.query.status !== 'all') {
-        query.status = req.query.status;
-      }
-    } else {
-      // Public can only see published posts
-      query.status = 'published';
+    console.log('Blog query params:', req.query);
+    
+    // Build query
+    const query = {};
+    
+    // Filter by category if provided
+    if (category) {
+      query.category = category;
     }
     
-    // Filter by category
-    if (req.query.category && req.query.category !== 'All') {
-      query.category = req.query.category;
+    // Filter by status if provided
+    if (status) {
+      query.status = status;
     }
     
-    // Filter by featured
-    if (req.query.featured === 'true') {
-      query.featured = true;
-    }
+    console.log('MongoDB query:', query);
     
-    // Filter by tag
-    if (req.query.tag) {
-      query.tags = { $in: [req.query.tag] };
-    }
-    
-    // Search by term
-    if (req.query.search) {
-      query.$text = { $search: req.query.search };
-    }
-    
-    // Pagination
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const startIndex = (page - 1) * limit;
-    
-    // Sorting
+    // Build sort object
     let sortOptions = {};
-    if (req.query.sort) {
-      const sortField = req.query.sort.split(',')[0];
-      const sortDirection = req.query.sort.split(',')[1] === 'desc' ? -1 : 1;
-      sortOptions[sortField] = sortDirection;
+    if (sort) {
+      const [field, order] = sort.split(',');
+      sortOptions[field] = order === 'desc' ? -1 : 1;
     } else {
-      // Default sort by newest published date for published posts
-      if (query.status === 'published') {
-        sortOptions = { publishDate: -1 };
-      } else {
-        // Default sort by updatedAt for all posts or drafts
-        sortOptions = { updatedAt: -1 };
-      }
+      // Default sort by createdAt desc
+      sortOptions = { createdAt: -1 };
     }
     
-    // Execute query with pagination
-    const posts = await BlogPost.find(query)
-      .sort(sortOptions)
-      .skip(startIndex)
-      .limit(limit);
-      
-    // Get total count
-    const totalPosts = await BlogPost.countDocuments(query);
+    console.log('Sort options:', sortOptions);
     
-    // Pagination results
-    const pagination = {
-      page,
-      limit,
-      totalPages: Math.ceil(totalPosts / limit),
-      totalPosts,
-    };
+    // Execute query
+    let posts = await BlogPost.find(query)
+      .sort(sortOptions)
+      .limit(parseInt(limit));
+    
+    console.log(`Found ${posts.length} blog posts`);
+    if (posts.length === 0) {
+      console.log('No posts found matching query');
+    } else {
+      // Log the first post as a sample
+      console.log('Sample post:', {
+        id: posts[0]._id,
+        title: posts[0].title,
+        status: posts[0].status,
+        createdAt: posts[0].createdAt
+      });
+    }
     
     res.json({
       success: true,
-      pagination,
-      data: posts,
+      count: posts.length,
+      data: posts
     });
   } catch (error) {
-    res.status(500);
-    throw error;
+    console.error('Error getting blog posts:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
   }
 };
 
@@ -100,26 +80,40 @@ const getBlogPostBySlug = async (req, res) => {
   try {
     const { slug } = req.params;
     
+    console.log(`Finding blog post with slug: "${slug}"`);
+    
     // Prepare query to include or exclude drafts based on user role
     const query = { slug };
     if (!req.user || req.user.role !== 'admin') {
       query.status = 'published';
     }
     
+    console.log('MongoDB query:', query);
+    
     const post = await BlogPost.findOne(query);
     
     if (!post) {
-      res.status(404);
-      throw new Error('Blog post not found');
+      console.log(`Blog post not found with slug: "${slug}"`);
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
     }
+    
+    console.log(`Found blog post: ${post.title} (${post._id})`);
     
     res.json({
       success: true,
-      data: post,
+      data: post
     });
   } catch (error) {
-    res.status(res.statusCode === 200 ? 500 : res.statusCode);
-    throw error;
+    console.error('Error getting blog post by slug:', error);
+    const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+    
+    res.status(statusCode).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
   }
 };
 
@@ -130,13 +124,21 @@ const getBlogPostBySlug = async (req, res) => {
  */
 const createBlogPost = async (req, res) => {
   try {
-    const { title, content, excerpt, category, tags, thumbnail } = req.body;
+    console.log("Create blog post request:", req.body);
+    const { title, content, excerpt, des, category, tags, thumbnail, banner, draft = false } = req.body;
     
     // Check for required fields
-    if (!title || !content || !excerpt || !category || !thumbnail) {
-      res.status(400);
-      throw new Error('Please provide all required fields');
+    if (!title) {
+      console.log("Missing required field: title");
+      return res.status(400).json({
+        success: false,
+        error: 'Title is required'
+      });
     }
+    
+    // Map frontend field names to backend field names
+    const mappedExcerpt = excerpt || des || title.substring(0, 150) + '...';
+    const mappedThumbnail = thumbnail || banner || '';
     
     // Generate slug from title
     const slug = req.body.slug || await generateUniqueSlug(title, async (slug) => {
@@ -145,29 +147,46 @@ const createBlogPost = async (req, res) => {
     });
     
     // Prepare the author (from authenticated user or body)
-    const author = req.user ? req.user.name : req.body.author;
+    const author = req.user ? req.user.name : (req.body.author || 'Admin');
     
     // Handle publish date for published posts
     let publishDate = null;
-    if (req.body.status === 'published') {
+    const status = draft === true ? 'draft' : (req.body.status || 'draft');
+    
+    if (status === 'published') {
       publishDate = req.body.publishDate || new Date();
     }
     
-    // Create blog post
-    const blogPost = await BlogPost.create({
-      ...req.body,
+    // Create blog post with all required fields
+    const blogPostData = {
+      title,
       slug,
+      content: content || {},
+      excerpt: mappedExcerpt,
+      category: category || 'Web Development', // Default category
       author,
-      publishDate,
-    });
+      thumbnail: mappedThumbnail,
+      tags: tags || [],
+      status,
+      publishDate
+    };
+    
+    console.log("Creating blog post with data:", blogPostData);
+    
+    const blogPost = await BlogPost.create(blogPostData);
+    
+    console.log("Blog post created with ID:", blogPost._id);
     
     res.status(201).json({
       success: true,
       data: blogPost,
     });
   } catch (error) {
-    res.status(res.statusCode === 200 ? 500 : res.statusCode);
-    throw error;
+    console.error("Error creating blog post:", error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
   }
 };
 
@@ -178,61 +197,50 @@ const createBlogPost = async (req, res) => {
  */
 const updateBlogPost = async (req, res) => {
   try {
-    const blogPost = await BlogPost.findById(req.params.id);
+    const { id } = req.params;
     
-    if (!blogPost) {
-      res.status(404);
-      throw new Error('Blog post not found');
-    }
+    console.log("Update request for blog post ID:", id);
+    console.log("Update data:", req.body);
     
-    // If slug is being updated, ensure it's unique
-    if (req.body.slug && req.body.slug !== blogPost.slug) {
-      const existingPost = await BlogPost.findOne({ slug: req.body.slug });
-      if (existingPost) {
-        res.status(400);
-        throw new Error('Blog post with this slug already exists');
-      }
-    }
+    // Find blog post
+    let blog = await BlogPost.findById(id);
     
-    // If title is changed but slug isn't provided, generate a new slug
-    if (req.body.title && req.body.title !== blogPost.title && !req.body.slug) {
-      req.body.slug = await generateUniqueSlug(req.body.title, async (slug) => {
-        const existingPost = await BlogPost.findOne({ slug });
-        return !!existingPost;
+    if (!blog) {
+      console.log("Blog post not found with ID:", id);
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
       });
     }
     
-    // Handle publish date for published posts
-    if (
-      (req.body.status === 'published' && blogPost.status !== 'published') ||
-      (req.body.status === 'published' && !blogPost.publishDate)
-    ) {
-      // If transitioning from draft to published, set publishDate if not provided
-      req.body.publishDate = req.body.publishDate || new Date();
-    }
-    
-    // Handle tags - convert string to array if needed
-    if (req.body.tags && typeof req.body.tags === 'string') {
-      req.body.tags = req.body.tags
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag !== '');
-    }
+    // Process update data
+    const updateData = {
+      ...req.body,
+      slug: req.body.slug || blog.slug, // Keep existing slug if not provided
+      status: req.body.draft ? 'draft' : (req.body.status || blog.status),
+      excerpt: req.body.excerpt || req.body.des || blog.excerpt,
+      thumbnail: req.body.thumbnail || req.body.banner || blog.thumbnail,
+      publishDate: req.body.status === 'published' && !blog.publishDate ? new Date() : blog.publishDate
+    };
     
     // Update blog post
-    const updatedBlogPost = await BlogPost.findByIdAndUpdate(
-      req.params.id,
-      { ...req.body },
-      { new: true, runValidators: true }
-    );
+    blog = await BlogPost.findByIdAndUpdate(id, updateData, {
+      new: true,
+      runValidators: true
+    });
     
-    res.json({
+    console.log("Blog post updated successfully:", blog._id);
+    
+    res.status(200).json({
       success: true,
-      data: updatedBlogPost,
+      data: blog
     });
   } catch (error) {
-    res.status(res.statusCode === 200 ? 500 : res.statusCode);
-    throw error;
+    console.error("Error updating blog post:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
   }
 };
 
@@ -243,23 +251,34 @@ const updateBlogPost = async (req, res) => {
  */
 const deleteBlogPost = async (req, res) => {
   try {
-    const blogPost = await BlogPost.findById(req.params.id);
+    const { id } = req.params;
     
-    if (!blogPost) {
-      res.status(404);
-      throw new Error('Blog post not found');
+    console.log("Delete request for blog post ID:", id);
+    
+    const blog = await BlogPost.findById(id);
+    
+    if (!blog) {
+      console.log("Blog post not found with ID:", id);
+      return res.status(404).json({
+        success: false,
+        error: 'Blog post not found'
+      });
     }
     
-    await blogPost.remove();
+    await blog.deleteOne();
     
-    res.json({
+    console.log("Blog post deleted successfully:", id);
+    
+    res.status(200).json({
       success: true,
-      data: {},
-      message: 'Blog post removed'
+      data: {}
     });
   } catch (error) {
-    res.status(res.statusCode === 200 ? 500 : res.statusCode);
-    throw error;
+    console.error("Error deleting blog post:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
   }
 };
 
@@ -347,6 +366,87 @@ const getBlogTags = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Auto-save a blog post
+ * @route   POST /api/blog/autosave
+ * @access  Private/Admin
+ */
+const autosaveBlogPost = async (req, res) => {
+  try {
+    const { title, banner, content, des, tags, draft, id } = req.body;
+    
+    console.log("Autosave request body:", req.body);
+    
+    // Create an object with the properties we want to save
+    const blogData = {
+      title: title || 'Untitled Draft',
+      content: content || {},
+      thumbnail: banner || '',
+      excerpt: des || 'Draft excerpt...', // Default excerpt to prevent validation errors
+      tags: tags || [],
+      status: 'draft',
+      category: 'Web Development', // Default category to prevent validation errors
+      author: req.user ? req.user.name : 'Admin'
+    };
+    
+    console.log("Prepared blog data for save:", blogData);
+    
+    let blogPost;
+    
+    // If blog post ID exists, update it
+    if (id) {
+      blogPost = await BlogPost.findById(id);
+      
+      if (!blogPost) {
+        // If the post doesn't exist, create a new one
+        // Generate a slug from the title
+        const slug = await generateUniqueSlug(title || 'untitled-draft', async (slug) => {
+          const existingPost = await BlogPost.findOne({ slug });
+          return !!existingPost;
+        });
+        
+        blogPost = await BlogPost.create({
+          ...blogData,
+          slug
+        });
+        
+        console.log("Created new blog post:", blogPost._id);
+      } else {
+        // Update existing blog post
+        Object.assign(blogPost, blogData);
+        await blogPost.save();
+        console.log("Updated existing blog post:", blogPost._id);
+      }
+    } else {
+      // Create a new blog post
+      // Generate a slug from the title
+      const slug = await generateUniqueSlug(title || 'untitled-draft', async (slug) => {
+        const existingPost = await BlogPost.findOne({ slug });
+        return !!existingPost;
+      });
+      
+      blogPost = await BlogPost.create({
+        ...blogData,
+        slug
+      });
+      
+      console.log("Created new blog post:", blogPost._id);
+    }
+    
+    res.status(200).json({
+      success: true,
+      data: blogPost,
+      message: 'Blog post auto-saved'
+    });
+  } catch (error) {
+    console.error('Auto-save error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error during auto-save'
+    });
+  }
+};
+
 module.exports = {
   getBlogPosts,
   getBlogPostBySlug,
@@ -356,4 +456,5 @@ module.exports = {
   getFeaturedBlogPosts,
   getBlogCategories,
   getBlogTags,
+  autosaveBlogPost
 };

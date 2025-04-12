@@ -1,111 +1,95 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SideBar from '../components/sidebar.component';
 import ProductCard from '../components/ProductCard';
+import { getProducts } from '../services/productService';
 
 const StorePage = () => {
-  // Categories for filtering
-  const categories = ['All', 'Templates', 'UI Kits', 'Notion', 'Framer', 'Figma'];
+
+
+  // State for products and loading
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [activeCategory, setActiveCategory] = useState('All');
 
-  // Sample products data
-  const allProducts = [
-    {
-      id: "compo-portfolio",
-      platform: "FRAMER",
-      title: "Compo Portfolio Template",
-      price: 69,
-      description: "A minimal and professional portfolio template for designers and creatives.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Templates",
-      featured: true,
-      bestseller: true
-    },
-    {
-      id: "capsule-blog",
-      platform: "NOTION + SUPER",
-      title: "Capsule Blog Template",
-      price: 15,
-      description: "A clean, customizable blog template powered by Notion and Super.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Notion",
-      featured: true,
-      bestseller: false
-    },
-    {
-      id: "digital-dashboard",
-      platform: "FIGMA",
-      title: "Digital Dashboard UI Kit",
-      price: 49,
-      description: "A comprehensive UI kit for creating data-rich dashboard interfaces.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "UI Kits",
-      featured: false,
-      bestseller: true
-    },
-    {
-      id: "minimal-portfolio",
-      platform: "FRAMER",
-      title: "Minimal Portfolio",
-      price: 59,
-      description: "A minimalist portfolio template with a focus on typography and whitespace.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Templates",
-      featured: false,
-      bestseller: false
-    },
-    {
-      id: "agency-site",
-      platform: "FRAMER",
-      title: "Agency Site Template",
-      price: 79,
-      description: "A professional template for creative agencies featuring case studies and team showcases.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Templates",
-      featured: false,
-      bestseller: false
-    },
-    {
-      id: "notion-productivity",
-      platform: "NOTION",
-      title: "Productivity System",
-      price: 29,
-      description: "A complete Notion system for personal and professional productivity management.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Notion",
-      featured: false,
-      bestseller: true
-    },
-    {
-      id: "mobile-app-ui",
-      platform: "FIGMA",
-      title: "Mobile App UI Kit",
-      price: 39,
-      description: "A comprehensive mobile app UI kit with 100+ components and 50+ screens.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "UI Kits",
-      featured: false,
-      bestseller: false
-    },
-    {
-      id: "ecommerce-template",
-      platform: "FRAMER",
-      title: "E-Commerce Template",
-      price: 89,
-      description: "A complete e-commerce template with product pages, cart functionality, and checkout.",
-      thumbnail: "https://via.placeholder.com/600x400",
-      category: "Templates",
-      featured: false,
-      bestseller: false
-    }
-  ];
+  // Pagination and filtering
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchTerm, setSearchTerm] = useState('');
+
+
+  const [categories, setCategories] = useState(['All']);
+
+   // Fetch products on initial load and when filters change
+   useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setLoading(true);
+        
+        // Prepare query parameters
+        const params = {
+          page,
+          limit: 9, // Products per page
+          sort: 'createdAt,desc' // Newest first
+        };
+        
+        // Apply category filter if not "All"
+        if (activeCategory !== 'All') {
+          params.category = activeCategory;
+        }
+        
+        // Apply search filter if present
+        if (searchTerm) {
+          params.search = searchTerm;
+        }
+        
+        // Fetch products from API
+        const response = await getProducts(params);
+        
+        setProducts(response.data);
+        setTotalPages(response.pagination.totalPages);
+        
+        // Extract unique categories
+        if (response.data.length > 0) {
+          const uniqueCategories = [...new Set(response.data.map(product => product.category))];
+          setCategories(['All', ...uniqueCategories]);
+        }
+        
+        setError(null);
+      } catch (err) {
+        setError(err.message);
+        console.error('Error fetching products:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
+  }, [page, activeCategory, searchTerm]);
 
   // Filter products based on active category
-  const filteredProducts = activeCategory === 'All' 
-    ? allProducts 
-    : allProducts.filter(product => 
-        product.category === activeCategory || product.platform.includes(activeCategory.toUpperCase())
-      );
+  const featuredProducts = products.filter(p => p.featured);
+
+  // Handle category change
+  const handleCategoryChange = (category) => {
+    setActiveCategory(category);
+    setPage(1); // Reset to first page when changing category
+  };
+
+  // Handle search input
+  const handleSearch = (e) => {
+    e.preventDefault();
+    // Search is applied when form is submitted
+    // The actual API call is triggered by the useEffect
+  };
+
+  // Handle page change
+  const handlePageChange = (newPage) => {
+    setPage(newPage);
+    // Scroll to top when changing page
+    window.scrollTo(0, 0);
+  };
 
   return (
     <div className="flex">
@@ -122,7 +106,7 @@ const StorePage = () => {
           </div>
 
           {/* Featured Products Banner - Only show if there are featured products */}
-          {allProducts.filter(p => p.featured).length > 0 && (
+          {featuredProducts.length > 0 && (
             <div className="bg-gradient-to-r from-blue-900 to-purple-900 rounded-xl p-8 mb-12">
               <div className="flex flex-col md:flex-row justify-between items-center">
                 <div>
@@ -133,7 +117,7 @@ const StorePage = () => {
                 </div>
                 <div className="mt-4 md:mt-0">
                   <button 
-                    onClick={() => setActiveCategory('All')}
+                    onClick={() => handleCategoryChange('All')}
                     className="bg-white text-purple-900 hover:bg-gray-100 font-medium py-2 px-6 rounded-md transition-colors"
                   >
                     Explore All
@@ -143,12 +127,37 @@ const StorePage = () => {
             </div>
           )}
 
+           {/* Search and Filters */}
+           <div className="mb-12">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
+              {/* Search Form */}
+              <form onSubmit={handleSearch} className="sm:flex-1">
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search products..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500"
+                  />
+                  <button
+                    type="submit"
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </button>
+                </div>
+              </form>
+            </div>
+
           {/* Category Filter */}
           <div className="flex flex-wrap gap-3 mb-12">
             {categories.map((category) => (
               <button
                 key={category}
-                onClick={() => setActiveCategory(category)}
+                onClick={() => handleCategoryChange(category)}
                 className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
                   activeCategory === category
                     ? 'bg-blue-600 text-white'
@@ -160,31 +169,105 @@ const StorePage = () => {
             ))}
           </div>
 
-          {/* Products Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-            {filteredProducts.map((product) => (
-              <div key={product.id} className="relative">
-                {product.bestseller && (
-                  <div className="absolute top-4 right-4 z-10 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full">
-                    BESTSELLER
-                  </div>
-                )}
-                <ProductCard product={product} />
-              </div>
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {filteredProducts.length === 0 && (
-            <div className="text-center py-16">
-              <h3 className="text-xl text-gray-300 mb-4">No products found in this category</h3>
+           {/* Loading, Error, and Empty States */}
+           {loading ? (
+            <div className="flex justify-center items-center p-20">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+            </div>
+          ) : error ? (
+            <div className="bg-red-900 bg-opacity-30 border border-red-800 text-red-200 p-4 rounded-md mb-8">
+              <p>{error}</p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-2 text-sm underline hover:text-white"
+              >
+                Retry
+              </button>
+            </div>
+          ) : products.length === 0 ? (
+            <div className="text-center py-16 bg-gray-800 rounded-lg">
+              <h3 className="text-xl text-gray-300 mb-4">No products found</h3>
+              <p className="text-gray-400 mb-6">Try adjusting your search or filter criteria</p>
               <button
-                onClick={() => setActiveCategory('All')}
+                onClick={() => {
+                  setActiveCategory('All');
+                  setSearchTerm('');
+                }}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-md transition-colors"
               >
                 View All Products
               </button>
             </div>
+          ) : (
+            <>
+              {/* Products Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+                {products.map((product) => (
+                  <div key={product._id} className="relative">
+                    {product.bestseller && (
+                      <div className="absolute top-4 right-4 z-10 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full">
+                        BESTSELLER
+                      </div>
+                    )}
+                    <ProductCard product={{
+                      id: product._id,
+                      platform: product.platform,
+                      title: product.title,
+                      price: product.price,
+                      description: product.description,
+                      thumbnail: product.thumbnail,
+                      category: product.category
+                    }} />
+                  </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center mb-16">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => handlePageChange(page - 1)}
+                      disabled={page === 1}
+                      className={`px-4 py-2 rounded-md ${
+                        page === 1
+                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-800 text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      Previous
+                    </button>
+                    
+                    {/* Page numbers */}
+                    {[...Array(totalPages).keys()].map((x) => (
+                      <button
+                        key={x + 1}
+                        onClick={() => handlePageChange(x + 1)}
+                        className={`px-4 py-2 rounded-md ${
+                          page === x + 1
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-800 text-white hover:bg-gray-700'
+                        }`}
+                      >
+                        {x + 1}
+                      </button>
+                    ))}
+                    
+                    <button
+                      onClick={() => handlePageChange(page + 1)}
+                      disabled={page === totalPages}
+                      className={`px-4 py-2 rounded-md ${
+                        page === totalPages
+                          ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+                          : 'bg-gray-800 text-white hover:bg-gray-700'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {/* Custom Work CTA */}
@@ -214,36 +297,37 @@ const StorePage = () => {
               <div className="border border-gray-700 rounded-lg p-6">
                 <h3 className="text-xl font-medium mb-3">How do I download my purchase?</h3>
                 <p className="text-gray-300">
-                  After completing your purchase, you'll receive an email with download instructions. 
+                  After completing your purchase, you&apos;ll receive an email with download instructions. 
                   You can also access your purchases from your account dashboard at any time.
                 </p>
               </div>
               <div className="border border-gray-700 rounded-lg p-6">
                 <h3 className="text-xl font-medium mb-3">Do you offer refunds?</h3>
                 <p className="text-gray-300">
-                  Due to the digital nature of these products, I generally don't offer refunds. 
+                  Due to the digital nature of these products, I generally don&apos;t offer refunds. 
                   However, if you experience significant technical issues that I cannot resolve, 
-                  please contact me, and I'll work with you to find a solution.
+                  please contact me, and I&apos;ll work with you to find a solution.
                 </p>
               </div>
               <div className="border border-gray-700 rounded-lg p-6">
                 <h3 className="text-xl font-medium mb-3">Do you provide support for your templates?</h3>
                 <p className="text-gray-300">
                   Yes, I offer email support for all purchased products. Each product also comes with detailed documentation 
-                  to help you get started. For more complex customizations, I'm available for hire on an hourly basis.
+                  to help you get started. For more complex customizations, I&apos;m available for hire on an hourly basis.
                 </p>
               </div>
               <div className="border border-gray-700 rounded-lg p-6">
                 <h3 className="text-xl font-medium mb-3">Can I use your templates for client projects?</h3>
                 <p className="text-gray-300">
-                  The standard license allows you to use a template for a single end product (your own or a client's). 
-                  For multiple projects, you'll need to purchase a license for each use or contact me about an extended license.
+                  The standard license allows you to use a template for a single end product (your own or a client&apos;s). 
+                  For multiple projects, you&apos;ll need to purchase a license for each use or contact me about an extended license.
                 </p>
               </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };

@@ -2,11 +2,15 @@ import { Link } from "react-router-dom";
 import PropTypes from 'prop-types';
 
 const ProductCard = ({ product }) => {
-  const { id, platform, title, price, description, thumbnail } = product;
+  const { _id, id, platform, title, price, description, thumbnail, slug } = product;
+
+  // Create a consistent product URL using available identifiers in order of preference
+  const productId = slug || _id || id;
+  const productUrl = `/products/${productId}`;
   
   return (
     <div>
-      <Link to={`/products/${id}`} className="block group">
+      <Link to={productUrl} className="block group">
         <div className="relative overflow-hidden rounded-md border border-gray-800 mb-4">
           {/* Product Thumbnail */}
           <img 
@@ -41,7 +45,7 @@ const ProductCard = ({ product }) => {
             Buy Now
           </a>
           <Link 
-            to={`/products/${id}`}
+            to={productUrl}
             className="bg-gray-800 hover:bg-gray-700 text-gray-200 py-2 px-4 rounded-md transition-colors inline-block text-sm font-medium"
           >
             Preview

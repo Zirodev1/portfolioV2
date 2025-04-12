@@ -1,60 +1,35 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import SideBar from "../components/sidebar.component";
+import { getProduct } from "../services/productService";
 
 const ProjectDetailPage = () => {
   const { id } = useParams();
+  const navigate = useNavigate();
+  
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [activeTab, setActiveTab] = useState('overview');
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
-  // In a real application, you would fetch project data from an API or database
-  // For now, we'll use dummy data
   useEffect(() => {
-    // Simulating API call
-    setTimeout(() => {
-      // This would be replaced with your actual data fetching
-      const projectData = {
-        id: id,
-        title: "Shopify Store Redesign",
-        category: "E-Commerce",
-        client: "Fashion Boutique",
-        timeline: "6 weeks",
-        role: "Lead Product Designer",
-        description: "A complete redesign of an e-commerce platform with improved user flow and conversion optimization. The client needed a modern, responsive design that would showcase their products effectively while providing an intuitive shopping experience for their customers.",
-        challenge: "The main challenge was to create a seamless shopping experience across all devices while maintaining the brand's premium aesthetic. The previous website had a high cart abandonment rate and poor mobile usability.",
-        solution: "I designed a clean, intuitive interface that prioritized product imagery and simplified the checkout process. By implementing a responsive design and optimizing the user journey, we were able to significantly reduce cart abandonment and increase mobile conversions.",
-        results: [
-          "42% increase in conversion rate",
-          "67% reduction in cart abandonment",
-          "89% improvement in mobile engagement",
-          "52% increase in average session duration"
-        ],
-        technologies: ["Shopify", "Liquid", "CSS/SCSS", "JavaScript", "Figma"],
-        mainImage: "https://via.placeholder.com/1200x800",
-        images: [
-          "https://via.placeholder.com/800x600",
-          "https://via.placeholder.com/800x600",
-          "https://via.placeholder.com/800x600"
-        ],
-        testimonial: {
-          quote: "Jackson transformed our online store completely. The new design not only looks fantastic but has significantly improved our sales and customer engagement. The attention to detail and understanding of our brand was exceptional.",
-          author: "Emma Rodriguez",
-          role: "Marketing Director",
-          company: "Fashion Boutique"
-        },
-        nextProject: {
-          id: "2",
-          title: "Analytics Platform"
-        },
-        prevProject: {
-          id: "9",
-          title: "Travel Planner"
-        }
-      };
-      
-      setProject(projectData);
-      setLoading(false);
-    }, 500);
+    const fetchProjectData = async () => {
+      try {
+        setLoading(true);
+        // You might need to adjust this based on your actual API
+        const response = await getProduct(id);
+        setProject(response);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching project:', err);
+        setError('Failed to load project details');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProjectData();
   }, [id]);
 
   if (loading) {

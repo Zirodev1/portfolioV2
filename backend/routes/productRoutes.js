@@ -1,25 +1,38 @@
 const express = require('express');
 const router = express.Router();
-const {
-  getProducts,
-  getProductByIdOrSlug,
-  createProduct,
-  updateProduct,
+const multer = require('multer');
+const { 
+  getProducts, 
+  getProductBySlug, 
+  createProduct, 
+  updateProduct, 
   deleteProduct,
-  getFeaturedProducts,
-  getBestsellerProducts,
+  uploadProductFile,
+  getDownloadUrl
 } = require('../controllers/productController');
-const { protect, authorize } = require('../middleware/authMiddleware');
+
+// Set up multer for file uploads
+const storage = multer.memoryStorage(); // Store files in memory for S3 upload
+const upload = multer({ 
+  storage,
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max file size
+  }
+});
 
 // Public routes
 router.get('/', getProducts);
-router.get('/featured', getFeaturedProducts);
-router.get('/bestsellers', getBestsellerProducts);
-router.get('/:idOrSlug', getProductByIdOrSlug);
+router.get('/:slug', getProductBySlug);
 
-// Protected routes - admin only
-router.post('/', protect, authorize('admin'), createProduct);
-router.put('/:id', protect, authorize('admin'), updateProduct);
-router.delete('/:id', protect, authorize('admin'), deleteProduct);
+// Admin routes
+router.post('/', createProduct);
+router.put('/:id', updateProduct);
+router.delete('/:id', deleteProduct);
+
+// File upload route
+router.post('/:id/upload', upload.single('file'), uploadProductFile);
+
+// Download route
+router.get('/:id/download', getDownloadUrl);
 
 module.exports = router;

@@ -1,527 +1,758 @@
-import { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams } from "react-router-dom";
+import blogBanner from "../../../imgs/blogBanner.png";
+import { uploadImage } from "../../../common/aws";
+import { useContext, useRef, useState, useLayoutEffect, useCallback } from "react";
+import { Toaster, toast } from "react-hot-toast";
+import { EditorContext } from "../../../pages/editor.pages";
+import EditorJS from "@editorjs/editorjs";
+import { tools } from "../../tools.component";
+import axios from "axios";
 import PropTypes from 'prop-types';
 
+// Check if we already have an editor instance
+let globalEditorInstance = null;
+
+// Auto-save interval (in milliseconds)
+const AUTO_SAVE_INTERVAL = 30000; // 30 seconds
+
+// Character limit for description
+const characterLimit = 200;
+const tagLimit = 10;
+
+// Add this list of categories based on your MongoDB schema
+const BLOG_CATEGORIES = [
+  'Web Development',
+  'Frontend',
+  'Backend',
+  'DevOps',
+  'Tutorials',
+  'Career'
+];
+
 const BlogPostForm = ({ post, onSubmit }) => {
-  // Available categories
-  const categories = ['Web Development', 'Frontend', 'Backend', 'DevOps', 'Tutorials', 'Career'];
-  
-  // Default empty form state
-  const defaultFormState = {
-    id: '',
-    slug: '',
-    title: '',
-    content: '',
-    excerpt: '',
-    category: '',
+  // Initial blog state based on props or default values
+  const initialBlogState = post ? {
+    title: post.title || "",
+    banner: post.thumbnail || post.banner || "",
+    content: post.content || null,
+    tags: post.tags || [],
+    des: post.excerpt || post.des || "",
+    id: post._id || post.id || null,
+    slug: post.slug || "",
+    status: post.status || "draft",
+    category: post.category || "Web Development",
+    // Debug props
+    _id: post._id,
+    mongodb_fields: {
+      updatedAt: post.updatedAt,
+      createdAt: post.createdAt
+    }
+  } : {
+    title: "",
+    banner: "",
+    content: null,
     tags: [],
-    thumbnail: '',
-    status: 'draft', // draft, published
-    publishDate: '',
-    featured: false
+    des: "",
+    id: null,
+    slug: "",
+    status: "draft",
+    category: "Web Development"
   };
 
-  // Initialize form state from post or default
-  const [formData, setFormData] = useState(post ? {
-    ...post,
-    tags: post.tags.join(', ') // Convert tags array to comma-separated string for input
-  } : defaultFormState);
+  // Local state
+  const [localBlog, setLocalBlog] = useState(initialBlogState);
+  const [lastSaved, setLastSaved] = useState(null);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [showPublishOptions, setShowPublishOptions] = useState(false);
+  const autoSaveTimerRef = useRef(null);
 
-  // State for handling file uploads
-  const [thumbnailFile, setThumbnailFile] = useState(null);
-  const [thumbnailPreview, setThumbnailPreview] = useState(post ? post.thumbnail : '');
-  
-  // State for form errors
-  const [errors, setErrors] = useState({});
-  
-  // State for form submission
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // Get EditorContext if available
+  const editorContext = useContext(EditorContext);
 
-  // State for tag input
-  const [tagInput, setTagInput] = useState(post ? post.tags.join(', ') : '');
+  // Determine which context to use (global or local)
+  const blog = editorContext?.blog || localBlog;
+  const setBlog = editorContext?.setBlog || setLocalBlog;
+  const setTextEditor = editorContext?.setTextEditor || (() => {});
+  // We'll use setEditorState in external editor context if available, otherwise we handle UI locally
+  // (This variable is conditionally used when we have the EditorContext)
 
-  // For a real implementation, you would use a rich text editor
-  // This is a simplified version
-  const [contentPreview, setContentPreview] = useState(false);
+  // Safe access to blog properties with fallbacks
+  const title = blog?.title || "";
+  const banner = blog?.banner || "";
+  const content = blog?.content || null;
+  const tags = blog?.tags || [];
+  const des = blog?.des || "";
 
-  // Handle input changes
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    
-    // Handle different input types
-    const newValue = type === 'checkbox' ? checked : value;
-    
-    setFormData({
-      ...formData,
-      [name]: newValue
-    });
-    
-    // Clear error when field is edited
-    if (errors[name]) {
-      setErrors({
-        ...errors,
-        [name]: ''
-      });
-    }
-  };
+  const { blog_id } = useParams();
+  const navigate = useNavigate();
 
-  // Handle tag input
-  const handleTagChange = (e) => {
-    setTagInput(e.target.value);
-    
-    // Update form data with parsed tags
-    const tags = e.target.value.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-    setFormData({
-      ...formData,
-      tags
-    });
-  };
+  const editorRef = useRef(null);
+  const editorElementId = useRef(`textEditor-${Date.now()}`);
+  const [isEditorReady, setIsEditorReady] = useState(false);
 
-  // Handle slug generation from title
-  useEffect(() => {
-    if (!post && formData.title && !formData.slug) {
-      const slug = formData.title
-        .toLowerCase()
-        .replace(/[^\w\s]/gi, '')
-        .replace(/\s+/g, '-');
-      
-      setFormData({
-        ...formData,
-        slug
-      });
-    }
-  }, [formData.title, post]);
-
-  // Handle file input change
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    
-    setThumbnailFile(file);
-    
-    // Create preview URL
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setThumbnailPreview(reader.result);
-    };
-    reader.readAsDataURL(file);
-    
-    // Clear error
-    if (errors.thumbnail) {
-      setErrors({
-        ...errors,
-        thumbnail: ''
-      });
-    }
-  };
-
-  // Handle status change with publish date logic
-  const handleStatusChange = (e) => {
-    const status = e.target.value;
-    
-    // If changing to published and no publish date is set, use current date
-    if (status === 'published' && !formData.publishDate) {
-      setFormData({
-        ...formData,
-        status,
-        publishDate: new Date().toISOString().split('T')[0]
-      });
-    } else {
-      setFormData({
-        ...formData,
-        status
-      });
-    }
-  };
-
-  // Validate form data
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.title.trim()) {
-      newErrors.title = 'Title is required';
-    }
-    
-    if (!formData.slug.trim()) {
-      newErrors.slug = 'Slug is required';
-    } else if (!/^[a-z0-9-]+$/.test(formData.slug)) {
-      newErrors.slug = 'Slug can only contain lowercase letters, numbers, and hyphens';
-    }
-    
-    if (!formData.content.trim()) {
-      newErrors.content = 'Content is required';
-    }
-    
-    if (!formData.excerpt.trim()) {
-      newErrors.excerpt = 'Excerpt is required';
-    }
-    
-    if (!formData.category) {
-      newErrors.category = 'Category is required';
-    }
-    
-    if (!thumbnailPreview && !formData.thumbnail) {
-      newErrors.thumbnail = 'Thumbnail image is required';
-    }
-    
-    return newErrors;
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate form
-    const validationErrors = validateForm();
-    if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      return;
-    }
-    
-    setIsSubmitting(true);
+  // Auto-save function
+  const performAutoSave = useCallback(async () => {
+    if (!editorRef.current || !isEditorReady || !title) return;
     
     try {
-      // In a real implementation, you would:
-      // 1. Upload the image to cloud storage (S3, Cloudinary, etc.)
-      // 2. Get the URL of the uploaded image
-      // 3. Submit the form data with the image URL to your API
+      const data = await editorRef.current.save();
       
-      // For now, we'll simulate this
-      const imageUrl = thumbnailFile 
-        ? thumbnailPreview // In a real app, this would be the URL from your cloud storage
-        : formData.thumbnail;
-      
-      // Prepare tags array
-      const tags = tagInput.split(',').map(tag => tag.trim()).filter(tag => tag !== '');
-      
-      // Prepare final data
-      const finalData = {
-        ...formData,
-        tags,
-        thumbnail: imageUrl,
-        lastUpdated: new Date().toISOString(),
-        // Generate ID if new post
-        id: formData.id || `post-${Date.now()}`
-      };
-      
-      // Submit the data
-      await onSubmit(finalData);
-      
-      // Reset form if it's a new post
-      if (!post) {
-        setFormData(defaultFormState);
-        setThumbnailFile(null);
-        setThumbnailPreview('');
-        setTagInput('');
+      // Check if we have enough content to save
+      if ((title || banner) && data?.blocks?.length) {
+        const draftData = {
+          title,
+          banner,
+          des,
+          content: data,
+          tags,
+          draft: true,
+          category: blog.category || 'Web Development', // Include category in auto-save
+          id: blog_id || blog?.id
+        };
+        
+        console.log("Autosaving with data:", draftData);
+        
+        // Save to MongoDB without authentication headers
+        const response = await axios.post(
+          `${import.meta.env.VITE_API_URL}/blog/autosave`, 
+          draftData
+          // No auth headers for testing
+        );
+        
+        if (response.data.success) {
+          setLastSaved(new Date());
+          console.log("Auto-saved successfully at", new Date().toLocaleTimeString());
+          console.log("Server response:", response.data);
+        }
       }
     } catch (error) {
-      console.error('Error submitting form:', error);
-      setErrors({
-        submit: 'Failed to submit post. Please try again.'
-      });
-    } finally {
-      setIsSubmitting(false);
+      console.error("Auto-save failed:", error);
     }
+  }, [title, banner, des, tags, blog_id, blog?.id, blog.category, isEditorReady]);
+
+  // Set up auto-save timer
+  useLayoutEffect(() => {
+    if (autoSaveEnabled && isEditorReady) {
+      // Clear any existing timer
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+      
+      // Set up new timer
+      autoSaveTimerRef.current = setInterval(performAutoSave, AUTO_SAVE_INTERVAL);
+      
+      // Auto-save when title or banner changes
+      if (title || banner) {
+        const saveTimer = setTimeout(performAutoSave, 2000);
+        return () => clearTimeout(saveTimer);
+      }
+    }
+    
+    // Clean up
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+    };
+  }, [title, banner, autoSaveEnabled, isEditorReady, performAutoSave]);
+
+  // Editor initialization with better control over lifecycle
+  useLayoutEffect(() => {
+    // Don't create a new instance if one already exists in the document
+    if (globalEditorInstance || document.querySelector('[data-editorjs-initialized]')) {
+      console.log("Editor instance already exists, skipping initialization");
+      return;
+    }
+
+    let editorInstance = null;
+    const editorElement = document.getElementById("textEditor");
+
+    if (editorElement && !editorRef.current) {
+      console.log("Initializing editor with ID:", editorElementId.current);
+      // Mark the container as having an initialized editor
+      editorElement.setAttribute('data-editorjs-initialized', 'true');
+      
+      try {
+        editorInstance = new EditorJS({
+          holder: "textEditor",
+          data: content,
+          tools: tools,
+          placeholder: "Let's write an awesome story",
+          autofocus: true,
+          onChange: () => {
+            // Content changed, consider it for auto-saving
+            if (autoSaveEnabled) {
+              // Debounce auto-save to avoid too frequent saves
+              if (autoSaveTimerRef.current) {
+                clearInterval(autoSaveTimerRef.current);
+              }
+              autoSaveTimerRef.current = setInterval(performAutoSave, AUTO_SAVE_INTERVAL);
+            }
+          },
+          onReady: () => {
+            editorRef.current = editorInstance;
+            globalEditorInstance = editorInstance;
+            setIsEditorReady(true);
+            console.log("Editor initialized successfully");
+          },
+        });
+
+        setTextEditor(editorInstance);
+      } catch (error) {
+        console.error("Error initializing editor:", error);
+      }
+    }
+
+    // Cleanup function
+    return () => {
+      if (autoSaveTimerRef.current) {
+        clearInterval(autoSaveTimerRef.current);
+      }
+      
+      if (editorRef.current) {
+        try {
+          editorRef.current.destroy();
+          editorRef.current = null;
+          globalEditorInstance = null;
+          console.log("Editor destroyed");
+        } catch (e) {
+          console.error("Error destroying editor", e);
+        }
+      }
+    };
+  }, [content, performAutoSave, setTextEditor]);
+
+  // Function to handle banner image upload
+  const handleBannerUpload = (e) => {
+    let img = e.target.files[0];
+
+    if (img) {
+      let loadingToast = toast.loading("Uploading...");
+
+      uploadImage(img)
+        .then((url) => {
+          if (url) {
+            toast.dismiss(loadingToast);
+            toast.success("Uploaded 👍");
+            setBlog({ ...blog, banner: url });
+            
+            // Trigger auto-save when banner is uploaded
+            if (title) {
+              setTimeout(performAutoSave, 1000);
+            }
+          }
+        })
+        .catch((err) => {
+          toast.dismiss(loadingToast);
+          return toast.error(err?.message || "Upload failed");
+        });
+    }
+  };
+
+  // Function to handle title change
+  const handleTitleChange = (e) => {
+    let input = e.target;
+
+    if (input) {
+      try {
+        input.style.height = "auto";
+        input.style.height = input.scrollHeight + "px";
+      } catch (error) {
+        console.error("Error adjusting textarea height", error);
+      }
+
+      setBlog({ ...blog, title: input.value });
+    }
+  };
+
+  // Function to handle errors in image loading (fallback to default banner)
+  const handleError = (e) => {
+    let img = e.target;
+    img.src = blogBanner;
+  };
+
+  // Toggle auto-save
+  const toggleAutoSave = () => {
+    setAutoSaveEnabled(!autoSaveEnabled);
+    if (!autoSaveEnabled) {
+      toast.success("Auto-save enabled");
+    } else {
+      toast.error("Auto-save disabled");
+    }
+  };
+
+  // Function to handle publishing the blog with additional options dialog
+  const handlePublishEvent = () => {
+    if (!banner) {
+      return toast.error("Upload a blog banner to publish it");
+    }
+
+    if (!title) {
+      return toast.error("Write a blog title to publish it");
+    }
+
+    // Check if we have content before proceeding
+    if (editorRef.current && isEditorReady) {
+      editorRef.current
+        .save()
+        .then((data) => {
+          if (data?.blocks?.length) {
+            // First update the blog content in state
+            setBlog({ ...blog, content: data });
+            
+            // Show the publish options dialog instead of publishing directly
+            setShowPublishOptions(true);
+          } else {
+            return toast.error("Write something in your blog to publish it");
+          }
+        })
+        .catch((err) => {
+          console.error("Error saving the content:", err);
+          toast.error("Failed to save the content. Please try again.");
+        });
+    } else {
+      toast.error("Editor is not ready. Please try again later.");
+    }
+  };
+
+  // Function to actually publish after showing options dialog
+  const publishBlog = () => {
+    if (!title || !banner) {
+      return;
+    }
+
+    // Validate description
+    if (!des.length) {
+      return toast.error(
+        `Write a description within the ${characterLimit} character limit to publish`
+      );
+    }
+
+    // Validate tags
+    if (!tags.length) {
+      return toast.error("Enter at least 1 tag to help rank your blog");
+    }
+
+    let loadingToast = toast.loading("Publishing...");
+    
+    // Get the latest content
+    editorRef.current
+      .save()
+      .then((content) => {
+        // Prepare blog object for publishing
+        let blogObj = {
+          title,
+          banner,
+          des,
+          content,
+          tags,
+          excerpt: des,
+          thumbnail: banner,
+          draft: false,
+          status: "published",
+          category: blog.category || post?.category || "Web Development",
+        };
+
+        // Determine the appropriate URL and method
+        const postId = blog?.id || blog?._id || post?._id || post?.id;
+        const saveUrl = postId
+          ? `${import.meta.env.VITE_API_URL}/blog/${postId}`
+          : `${import.meta.env.VITE_API_URL}/blog`;
+        
+        const method = postId ? 'put' : 'post';
+        
+        console.log(`Publishing blog to ${saveUrl} with method ${method}`, blogObj);
+        
+        // Make API call
+        axios({
+          method: method,
+          url: saveUrl,
+          data: blogObj
+        })
+          .then((response) => {
+            console.log("Publish response:", response.data);
+            toast.dismiss(loadingToast);
+            toast.success("Published ��");
+            setShowPublishOptions(false);
+
+            // If we have an onSubmit callback, call it
+            if (onSubmit && typeof onSubmit === 'function') {
+              onSubmit({...blogObj, id: postId});
+            } else {
+              // Otherwise navigate to the blog list
+              setTimeout(() => {
+                navigate("/dashboard/blogs");
+              }, 500);
+            }
+          })
+          .catch((error) => {
+            console.error("Error publishing blog:", error);
+            toast.dismiss(loadingToast);
+            toast.error(error.response?.data?.error || "Error publishing blog");
+          });
+      })
+      .catch((err) => {
+        console.error("Error saving content for publish:", err);
+        toast.dismiss(loadingToast);
+        toast.error("Failed to save content for publishing");
+      });
+  };
+
+  // Function to handle saving the blog as a draft
+  const handleSaveDraft = (e) => {
+    if (e.target.className.includes("disable")) {
+      return;
+    }
+
+    if (!title) {
+      return toast.error("Write a blog title before saving it as a draft");
+    }
+
+    console.log("Starting save draft process for blog post:", title);
+    let loadingToast = toast.loading("Saving Draft....");
+
+    e.target.classList.add("disable");
+
+    if (editorRef.current && isEditorReady) {
+      console.log("Editor is ready, saving content");
+      editorRef.current
+        .save()
+        .then((content) => {
+          console.log("Editor content saved:", JSON.stringify(content).substring(0, 100) + "...");
+          // If onSubmit prop exists, use it for admin dashboard integration
+          if (onSubmit && typeof onSubmit === 'function') {
+            console.log("Using onSubmit handler");
+            const blogData = {
+              id: blog.id || post?.id,
+              _id: blog._id || post?._id,
+              title: title,
+              thumbnail: banner,
+              content: content,
+              tags: tags,
+              excerpt: des,
+              slug: blog.slug || post?.slug,
+              status: "draft",
+              category: blog.category || post?.category || "Web Development"
+            };
+            
+            console.log("Blog data for onSubmit:", blogData);
+            e.target.classList.remove("disable");
+            toast.dismiss(loadingToast);
+            onSubmit(blogData);
+          } else {
+            // Original API endpoint logic
+            console.log("Using direct API endpoint");
+            let blogObj = {
+              title,
+              banner,
+              des,
+              content,
+              tags,
+              draft: true,
+              category: blog.category || 'Web Development', // Include selected category
+            };
+            
+            console.log("Blog data for API:", blogObj);
+            const saveUrl = blog_id 
+              ? `${import.meta.env.VITE_API_URL}/blog/update/${blog_id}`
+              : `${import.meta.env.VITE_API_URL}/blog/create`;
+            
+            console.log("Saving to URL:", saveUrl);
+            
+            // API call without authentication headers
+            axios
+              .post(saveUrl, blogObj)
+              .then((response) => {
+                console.log("Save response:", response.data);
+                e.target.classList.remove("disable");
+                toast.dismiss(loadingToast);
+                toast.success("Saved 👍");
+                setLastSaved(new Date());
+
+                setTimeout(() => {
+                  navigate("/dashboard/blogs?tab=draft");
+                }, 500);
+              })
+              .catch((error) => {
+                console.error("Save error:", error.response || error);
+                e.target.classList.remove("disable");
+                toast.dismiss(loadingToast);
+                return toast.error(error.response?.data?.error || "Error saving draft");
+              });
+          }
+        })
+        .catch((err) => {
+          console.error("Error saving the editor content:", err);
+          e.target.classList.remove("disable");
+          toast.dismiss(loadingToast);
+          toast.error("Failed to save the content. Please try again.");
+        });
+    } else {
+      console.error("Editor not ready");
+      e.target.classList.remove("disable");
+      toast.dismiss(loadingToast);
+      toast.error("Editor is not ready. Please try again later.");
+    }
+  };
+
+  // Format the last saved time
+  const formattedLastSaved = lastSaved 
+    ? `Last saved: ${lastSaved.toLocaleTimeString()}`
+    : "Not saved yet";
+
+  // Handle tag adding
+  const handleKeyDown = (e) => {
+    if (e.keyCode == 13 || e.keyCode == 188) {
+      e.preventDefault();
+      let tag = e.target.value;
+
+      if (tags.length < tagLimit) {
+        if (!tags.includes(tag) && tag.length) {
+          setBlog({ ...blog, tags: [...tags, tag] });
+        } else {
+          toast.error(`Max tag limit is ${tagLimit}`);
+        }
+      }
+
+      e.target.value = "";
+    }
+  };
+
+  // Remove a tag
+  const removeTag = (tagIndex) => {
+    let newTags = [...tags];
+    newTags.splice(tagIndex, 1);
+    setBlog({ ...blog, tags: newTags });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* General error message */}
-      {errors.submit && (
-        <div className="bg-red-900 bg-opacity-50 text-red-200 px-4 py-3 rounded-md">
-          {errors.submit}
+    <>
+      <Toaster />
+      {/* Publish Options Dialog */}
+      {showPublishOptions && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-2xl w-full">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">Publish Blog Post</h2>
+              <button 
+                onClick={() => setShowPublishOptions(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <div className="w-full aspect-video rounded-lg overflow-hidden bg-grey mt-4 mb-4">
+                <img src={banner} alt="Blog banner" className="w-full h-full object-cover" />
+              </div>
+              <h1 className="text-2xl font-medium mt-2 leading-tight line-clamp-2 text-white">
+                {title}
+              </h1>
+              <p className="line-clamp-3 text-lg leading-7 mt-4 text-gray-300">
+                {des}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-2">Description</p>
+              <textarea
+                maxLength={characterLimit}
+                value={des}
+                onChange={(e) => setBlog({ ...blog, des: e.target.value })}
+                className="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white resize-none h-24"
+                placeholder="Write a short description (will be used as excerpt)"
+              ></textarea>
+              <p className="mt-1 text-gray-400 text-sm text-right">
+                {characterLimit - des.length} characters left
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-2">Category</p>
+              <select
+                value={blog.category || "Web Development"}
+                onChange={(e) => setBlog({ ...blog, category: e.target.value })}
+                className="w-full bg-gray-700 border border-gray-600 rounded-md p-3 text-white"
+              >
+                {BLOG_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-gray-400 text-sm">
+                Selecting the right category helps readers find your content
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-300 mb-2">
+                Tags - (Helps in searching and ranking your blog post)
+              </p>
+              <div className="relative bg-gray-700 border border-gray-600 rounded-md p-3">
+                <input
+                  type="text"
+                  placeholder="Tag"
+                  className="bg-gray-700 mb-2 p-2 w-full focus:outline-none text-white"
+                  onKeyDown={handleKeyDown}
+                />
+                <div className="flex flex-wrap gap-2">
+                  {tags.map((tag, i) => (
+                    <span 
+                      key={i} 
+                      className="inline-flex items-center px-2 py-1 rounded-full text-sm bg-blue-600 text-white"
+                    >
+                      {tag}
+                      <button 
+                        onClick={() => removeTag(i)} 
+                        className="ml-1 focus:outline-none"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <p className="mt-1 text-gray-400 text-sm text-right">
+                {tagLimit - tags.length} tags left
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowPublishOptions(false)}
+                className="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-600"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={publishBlog}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Publish
+              </button>
+            </div>
+          </div>
         </div>
       )}
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Title */}
-        <div className="md:col-span-2">
-          <label htmlFor="title" className="block text-sm font-medium text-gray-300 mb-1">
-            Title *
-          </label>
-          <input
-            type="text"
-            id="title"
-            name="title"
-            value={formData.title}
-            onChange={handleChange}
-            className={`w-full bg-gray-700 border ${
-              errors.title ? 'border-red-500' : 'border-gray-600'
-            } rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500`}
-          />
-          {errors.title && (
-            <p className="mt-1 text-sm text-red-500">{errors.title}</p>
-          )}
-        </div>
-        
-        {/* Slug */}
-        <div>
-          <label htmlFor="slug" className="block text-sm font-medium text-gray-300 mb-1">
-            Slug *
-          </label>
-          <div className="flex">
-            <span className="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-600 bg-gray-800 text-gray-400 text-sm">
-              /blog/
-            </span>
-            <input
-              type="text"
-              id="slug"
-              name="slug"
-              value={formData.slug}
-              onChange={handleChange}
-              className={`flex-1 min-w-0 block w-full bg-gray-700 border ${
-                errors.slug ? 'border-red-500' : 'border-gray-600'
-              } rounded-r-md py-2 px-4 text-white focus:outline-none focus:border-blue-500`}
-            />
-          </div>
-          {errors.slug && (
-            <p className="mt-1 text-sm text-red-500">{errors.slug}</p>
-          )}
-        </div>
-        
-        {/* Category */}
-        <div>
-          <label htmlFor="category" className="block text-sm font-medium text-gray-300 mb-1">
-            Category *
-          </label>
-          <select
-            id="category"
-            name="category"
-            value={formData.category}
-            onChange={handleChange}
-            className={`w-full bg-gray-700 border ${
-              errors.category ? 'border-red-500' : 'border-gray-600'
-            } rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500`}
-          >
-            <option value="">Select a category</option>
-            {categories.map(category => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-          {errors.category && (
-            <p className="mt-1 text-sm text-red-500">{errors.category}</p>
-          )}
-        </div>
-      </div>
-      
-      {/* Excerpt */}
-      <div>
-        <label htmlFor="excerpt" className="block text-sm font-medium text-gray-300 mb-1">
-          Excerpt * <span className="text-gray-500">(Short summary for previews)</span>
-        </label>
-        <textarea
-          id="excerpt"
-          name="excerpt"
-          value={formData.excerpt}
-          onChange={handleChange}
-          rows={3}
-          className={`w-full bg-gray-700 border ${
-            errors.excerpt ? 'border-red-500' : 'border-gray-600'
-          } rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500`}
-        />
-        {errors.excerpt && (
-          <p className="mt-1 text-sm text-red-500">{errors.excerpt}</p>
-        )}
-      </div>
-      
-      {/* Content */}
-      <div>
-        <div className="flex justify-between items-center mb-1">
-          <label htmlFor="content" className="block text-sm font-medium text-gray-300">
-            Content *
-          </label>
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              className={`text-sm px-3 py-1 rounded ${contentPreview ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-              onClick={() => setContentPreview(false)}
-            >
-              Write
-            </button>
-            <button
-              type="button"
-              className={`text-sm px-3 py-1 rounded ${contentPreview ? 'bg-gray-800 text-gray-400' : 'bg-gray-600 text-white'}`}
-              onClick={() => setContentPreview(true)}
-            >
-              Preview
-            </button>
-          </div>
-        </div>
-        
-        {contentPreview ? (
-          <div className="prose prose-invert prose-lg max-w-none bg-gray-800 border border-gray-700 rounded-md p-6 min-h-[400px] overflow-auto">
-            {/* This would be a proper markdown renderer in a real app */}
-            <div dangerouslySetInnerHTML={{ __html: formData.content.replace(/\n/g, '<br />') }} />
-          </div>
-        ) : (
-          <>
-            <textarea
-              id="content"
-              name="content"
-              value={formData.content}
-              onChange={handleChange}
-              rows={15}
-              placeholder="Write your content in markdown format..."
-              className={`w-full bg-gray-700 border ${
-                errors.content ? 'border-red-500' : 'border-gray-600'
-              } rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500 font-mono`}
-            />
-            <p className="mt-1 text-xs text-gray-400">
-              Use markdown for formatting. Example: # Heading, **bold**, *italic*, [link](url), etc.
-            </p>
-          </>
-        )}
-        {errors.content && (
-          <p className="mt-1 text-sm text-red-500">{errors.content}</p>
-        )}
-      </div>
-      
-      {/* Tags */}
-      <div>
-        <label htmlFor="tags" className="block text-sm font-medium text-gray-300 mb-1">
-          Tags <span className="text-gray-500">(Comma separated)</span>
-        </label>
-        <input
-          type="text"
-          id="tags"
-          value={tagInput}
-          onChange={handleTagChange}
-          placeholder="React, JavaScript, Web Development"
-          className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500"
-        />
-      </div>
-      
-      {/* Thumbnail */}
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-1">
-          Thumbnail Image *
-        </label>
-        <div className="flex items-start space-x-4">
-          {/* Image preview */}
-          {thumbnailPreview && (
-            <div className="w-32 h-32 overflow-hidden rounded-md border border-gray-600">
-              <img
-                src={thumbnailPreview}
-                alt="Thumbnail preview"
-                className="w-full h-full object-cover"
-              />
+
+      <div className="bg-gray-900 text-white">
+        <div className="flex justify-between items-center p-4 border-b border-gray-700 mb-6">
+          <Link to="/admin/blog" className="text-gray-400 hover:text-white">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </Link>
+          <p className="text-xl font-medium">
+            {title || "New Blog Post"}
+          </p>
+          <div className="flex gap-4">
+            <div className="text-sm text-gray-400 self-center mr-2">
+              {formattedLastSaved}
             </div>
-          )}
-          
-          <div className="flex-1">
-            <div className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-gray-600 rounded-md hover:border-gray-500 transition-colors">
-              <label className="cursor-pointer w-full h-full flex flex-col items-center justify-center">
-                <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                <p className="text-sm text-gray-400">
-                  {thumbnailFile ? thumbnailFile.name : 'Click to upload or drag and drop'}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">PNG, JPG or GIF (max 2MB)</p>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleFileChange}
+            <button 
+              className={`px-3 py-1 rounded-md text-sm ${autoSaveEnabled ? 'bg-green-700' : 'bg-gray-700'}`}
+              onClick={toggleAutoSave}
+            >
+              {autoSaveEnabled ? 'Auto-save on' : 'Auto-save off'}
+            </button>
+            <button className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-md" onClick={handleSaveDraft}>
+              Save Draft
+            </button>
+            <button className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md" onClick={handlePublishEvent}>
+              Publish
+            </button>
+          </div>
+        </div>
+
+        <div className="mx-auto max-w-[900px] w-full px-6">
+          <div className="relative aspect-video hover:opacity-80 bg-gray-800 border-4 border-gray-700 rounded-lg overflow-hidden mb-8">
+            <label htmlFor="uploadBanner" className="cursor-pointer block w-full h-full">
+              {banner ? (
+                <img
+                  src={banner}
+                  alt="Blog Banner"
+                  className="w-full h-full object-cover"
+                  onError={handleError}
                 />
-              </label>
-            </div>
-            {errors.thumbnail && (
-              <p className="mt-1 text-sm text-red-500">{errors.thumbnail}</p>
-            )}
-          </div>
-        </div>
-      </div>
-      
-      {/* Publication Settings */}
-      <div className="bg-gray-800 p-6 rounded-lg">
-        <h3 className="text-lg font-medium mb-4">Publication Settings</h3>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Status */}
-          <div>
-            <label htmlFor="status" className="block text-sm font-medium text-gray-300 mb-1">
-              Status
+              ) : (
+                <div className="flex items-center justify-center h-full">
+                  <span className="text-gray-400">Click to upload banner image</span>
+                </div>
+              )}
+              <input
+                id="uploadBanner"
+                type="file"
+                accept=".png, .jpg, .jpeg"
+                hidden
+                onChange={handleBannerUpload}
+              />
             </label>
-            <select
-              id="status"
-              name="status"
-              value={formData.status}
-              onChange={handleStatusChange}
-              className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="draft">Draft</option>
-              <option value="published">Published</option>
-            </select>
           </div>
-          
-          {/* Publish Date - Only show if status is published */}
-          {formData.status === 'published' && (
-            <div>
-              <label htmlFor="publishDate" className="block text-sm font-medium text-gray-300 mb-1">
-                Publish Date
-              </label>
-              <input
-                type="date"
-                id="publishDate"
-                name="publishDate"
-                value={formData.publishDate}
-                onChange={handleChange}
-                className="w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-4 text-white focus:outline-none focus:border-blue-500"
-              />
+
+          <div className="flex justify-between items-center mb-8">
+            <input
+              value={title}
+              placeholder="Blog Title"
+              className="text-4xl font-medium w-full outline-none bg-transparent border-b border-gray-700 py-2 px-1"
+              onChange={handleTitleChange}
+            />
+            
+            <div className="flex-shrink-0 ml-4">
+              <select
+                value={blog.category || "Web Development"}
+                onChange={(e) => setBlog({ ...blog, category: e.target.value })}
+                className="bg-gray-800 border border-gray-700 text-white py-2 px-3 rounded-md"
+              >
+                <option value="" disabled>Select Category</option>
+                {BLOG_CATEGORIES.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
-          
-          {/* Featured */}
-          <div className="md:col-span-2">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="featured"
-                name="featured"
-                checked={formData.featured}
-                onChange={handleChange}
-                className="h-4 w-4 bg-gray-700 border-gray-600 rounded focus:ring-blue-500 focus:ring-offset-gray-800"
-              />
-              <label htmlFor="featured" className="ml-2 block text-sm text-gray-300">
-                Feature this post on the blog homepage
-              </label>
-            </div>
+          </div>
+
+          <div className="bg-gray-800 p-6 rounded-lg">
+            <div id="textEditor" className="min-h-[300px] text-white"></div>
           </div>
         </div>
       </div>
-      
-      {/* Submit button */}
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className={`bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition-colors ${
-            isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-          }`}
-        >
-          {isSubmitting ? 'Saving...' : post ? 'Update Post' : 'Create Post'}
-        </button>
-      </div>
-    </form>
+    </>
   );
 };
 
+// PropTypes for the component
 BlogPostForm.propTypes = {
   post: PropTypes.shape({
-    id: PropTypes.string.isRequired,
-    slug: PropTypes.string.isRequired,
-    title: PropTypes.string.isRequired,
-    content: PropTypes.string.isRequired,
-    excerpt: PropTypes.string.isRequired,
-    category: PropTypes.string.isRequired,
-    tags: PropTypes.arrayOf(PropTypes.string).isRequired,
-    thumbnail: PropTypes.string.isRequired,
-    status: PropTypes.string.isRequired,
-    publishDate: PropTypes.string,
-    lastUpdated: PropTypes.string,
-    featured: PropTypes.bool
+    id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    _id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    title: PropTypes.string,
+    thumbnail: PropTypes.string,
+    banner: PropTypes.string,
+    content: PropTypes.object,
+    tags: PropTypes.array,
+    excerpt: PropTypes.string,
+    des: PropTypes.string,
+    slug: PropTypes.string,
+    category: PropTypes.string,
+    status: PropTypes.string,
+    createdAt: PropTypes.string,
+    updatedAt: PropTypes.string
   }),
-  onSubmit: PropTypes.func.isRequired
+  onSubmit: PropTypes.func
+};
+
+// Default props
+BlogPostForm.defaultProps = {
+  post: null,
+  onSubmit: null
 };
 
 export default BlogPostForm;

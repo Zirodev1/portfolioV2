@@ -3,6 +3,7 @@ import {
   Routes,
   Route,
 } from "react-router-dom";
+import { createContext, useState, useEffect } from "react";
 
 import HomePage from "./pages/home.page";
 import ContactPage from "./pages/contact.page";
@@ -13,6 +14,7 @@ import StorePage from "./pages/store.page";
 import ProductDetailPage from "./pages/product-detail.page";
 import BlogPage from "./pages/blog.page";
 import BlogPostPage from "./pages/blog-post.page";
+import ProfilePage from "./pages/profile.page";
 
 // Admin pages
 import AdminProductDashboard from "./pages/admin/admin-product-dashboard.page";
@@ -25,35 +27,68 @@ import AdminBlogDashboard from "./pages/admin/admin-blog-dashboard.page";
 // import LoginPage from "./pages/auth/login.page";
 // import AuthGuard from "./components/auth/AuthGuard";
 
+// Create UserContext
+export const UserContext = createContext({});
+
 function App() {
+  // User authentication state
+  const [userAuth, setUserAuth] = useState({
+    accessToken: null,
+    username: null,
+    isAdmin: false
+  });
+
+  // Check for existing auth on component mount
+  useEffect(() => {
+    // Check localStorage or sessionStorage for stored authentication data
+    const storedToken = localStorage.getItem("accessToken");
+    const storedUser = localStorage.getItem("user");
+    
+    if (storedToken && storedUser) {
+      try {
+        const user = JSON.parse(storedUser);
+        setUserAuth({
+          accessToken: storedToken,
+          username: user.username,
+          isAdmin: user.isAdmin || false
+        });
+      } catch (err) {
+        console.error("Error parsing stored user data:", err);
+      }
+    }
+  }, []);
+
   return (
-    <Router>
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<HomePage/>} />
-        <Route path="/contact" element={<ContactPage />}/>
-        <Route path="/about" element={<AboutPage />} />
-        <Route path="/work" element={<WorkPage />} />
-        <Route path="/project/:id" element={<ProjectDetailPage />} />
-        <Route path="/store" element={<StorePage />} />
-        <Route path="/products/:id" element={<ProductDetailPage />} />
-        <Route path="/blog" element={<BlogPage />} />
-        <Route path="/blog/:slug" element={<BlogPostPage />} />
-        
-        {/* Auth Routes */}
-        {/* <Route path="/login" element={<LoginPage />} /> */}
-        
-        {/* Admin Routes - In a real app, these would be wrapped with AuthGuard */}
-        {/* <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} /> */}
-        <Route path="/admin/products" element={<AdminProductDashboard />} />
-        <Route path="/admin/blog" element={<AdminBlogDashboard />} />
-        {/* <Route path="/admin/media" element={<AuthGuard><AdminMediaLibrary /></AuthGuard>} /> */}
-        {/* <Route path="/admin/settings" element={<AuthGuard><AdminSettings /></AuthGuard>} /> */}
-        
-        {/* 404 Route would go here */}
-        {/* <Route path="*" element={<NotFoundPage />} /> */}
-      </Routes>
-    </Router>
+    <UserContext.Provider value={{ userAuth, setUserAuth }}>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<HomePage/>} />
+          <Route path="/contact" element={<ContactPage />}/>
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/work" element={<WorkPage />} />
+          <Route path="/project/:id" element={<ProjectDetailPage />} />
+          <Route path="/store" element={<StorePage />} />
+          <Route path="/products/:id" element={<ProductDetailPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogPostPage />} />
+          <Route path="/profile/:username" element={<ProfilePage />} />
+          
+          {/* Auth Routes */}
+          {/* <Route path="/login" element={<LoginPage />} /> */}
+          
+          {/* Admin Routes - In a real app, these would be wrapped with AuthGuard */}
+          {/* <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} /> */}
+          <Route path="/admin/products" element={<AdminProductDashboard />} />
+          <Route path="/admin/blog" element={<AdminBlogDashboard />} />
+          {/* <Route path="/admin/media" element={<AuthGuard><AdminMediaLibrary /></AuthGuard>} /> */}
+          {/* <Route path="/admin/settings" element={<AuthGuard><AdminSettings /></AuthGuard>} /> */}
+          
+          {/* 404 Route would go here */}
+          {/* <Route path="*" element={<NotFoundPage />} /> */}
+        </Routes>
+      </Router>
+    </UserContext.Provider>
   )
 }
 

@@ -1,23 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import BlogPostListItem from './BlogPostListItem';
 
 const BlogPostList = ({ posts, onCreatePost, onEditPost, onDeletePost }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState('lastUpdated');
+  const [sortField, setSortField] = useState('updatedAt'); // Changed default to MongoDB field
   const [sortDirection, setSortDirection] = useState('desc');
   const [statusFilter, setStatusFilter] = useState('all'); // all, published, draft
   const [categoryFilter, setCategoryFilter] = useState('All');
 
+  useEffect(() => {
+    console.log("BlogPostList received posts:", posts);
+  }, [posts]);
+
   // Get unique categories from posts
-  const categories = ['All', ...new Set(posts.map(post => post.category))];
+  const categories = ['All', ...new Set(posts.filter(post => post.category).map(post => post.category))];
+
+  // Debug missing thumbnails
+  const postsWithoutThumbnails = posts.filter(post => !post.thumbnail);
+  if (postsWithoutThumbnails.length > 0) {
+    console.warn("Posts missing thumbnails:", postsWithoutThumbnails);
+  }
 
   // Filter and sort posts
   const filteredPosts = posts
     .filter(post => {
+      // Handle cases where posts might be missing fields
+      const title = post.title || '';
+      const excerpt = post.excerpt || '';
+      
       // Filter by search term
-      const matchesSearch = post.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           post.excerpt.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           excerpt.toLowerCase().includes(searchTerm.toLowerCase());
       
       // Filter by status
       const matchesStatus = statusFilter === 'all' || post.status === statusFilter;
@@ -32,23 +46,36 @@ const BlogPostList = ({ posts, onCreatePost, onEditPost, onDeletePost }) => {
       let valueA, valueB;
       
       if (sortField === 'title') {
-        valueA = a.title;
-        valueB = b.title;
+        valueA = a.title || '';
+        valueB = b.title || '';
       } else if (sortField === 'publishDate') {
         // Handle null publish dates (drafts)
         valueA = a.publishDate ? new Date(a.publishDate) : new Date(0);
         valueB = b.publishDate ? new Date(b.publishDate) : new Date(0);
+      } else if (sortField === 'lastUpdated') {
+        // Try lastUpdated first, then fall back to updatedAt (MongoDB field)
+        valueA = a.lastUpdated ? new Date(a.lastUpdated) : new Date(a.updatedAt || 0);
+        valueB = b.lastUpdated ? new Date(b.lastUpdated) : new Date(b.updatedAt || 0);
       } else {
-        // Default to lastUpdated
-        valueA = new Date(a.lastUpdated);
-        valueB = new Date(b.lastUpdated);
+        // Default to updatedAt or createdAt from MongoDB
+        valueA = new Date(a.updatedAt || a.createdAt || 0);
+        valueB = new Date(b.updatedAt || b.createdAt || 0);
       }
       
-      // Sort based on direction
+      // Handle string comparison for title
+      if (sortField === 'title') {
+        if (sortDirection === 'asc') {
+          return valueA.localeCompare(valueB);
+        } else {
+          return valueB.localeCompare(valueA);
+        }
+      }
+      
+      // Sort dates
       if (sortDirection === 'asc') {
-        return valueA > valueB ? 1 : -1;
+        return valueA - valueB;
       } else {
-        return valueA < valueB ? 1 : -1;
+        return valueB - valueA;
       }
     });
 
@@ -198,12 +225,12 @@ const BlogPostList = ({ posts, onCreatePost, onEditPost, onDeletePost }) => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700">
-              {filteredPosts.map(post => (
-                <BlogPostListItem 
-                  key={post.id}
+              {filteredPosts.map((post, index) => (
+                <BlogPostListItem
+                  key={post.id || post._id || `post-${index}`}
                   post={post}
                   onEdit={() => onEditPost(post)}
-                  onDelete={() => onDeletePost(post.id)}
+                  onDelete={() => onDeletePost(post.id || post._id)}
                 />
               ))}
             </tbody>
@@ -227,12 +254,13 @@ const BlogPostList = ({ posts, onCreatePost, onEditPost, onDeletePost }) => {
 BlogPostList.propTypes = {
   posts: PropTypes.arrayOf(
     PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      slug: PropTypes.string.isRequired,
+      id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      _id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      slug: PropTypes.string,
       title: PropTypes.string.isRequired,
-      excerpt: PropTypes.string.isRequired,
-      category: PropTypes.string.isRequired,
-      status: PropTypes.string.isRequired,
+      excerpt: PropTypes.string,
+      category: PropTypes.string,
+      status: PropTypes.string,
       thumbnail: PropTypes.string.isRequired,
       publishDate: PropTypes.string,
       lastUpdated: PropTypes.string,

@@ -1,7 +1,6 @@
 import { CgHome } from "react-icons/cg";
 import { MdWorkOutline } from "react-icons/md";
 import { MdOutlineStorefront } from "react-icons/md";
-import { MdOutlineTravelExplore } from "react-icons/md";
 import { IoNewspaperOutline } from "react-icons/io5";
 import { FaRegUserCircle } from "react-icons/fa";
 import { IoMailOutline } from "react-icons/io5";
@@ -24,11 +23,6 @@ const SideBar = () => {
       list: 'Store',
       url: "/store",
       icon: <MdOutlineStorefront />
-    },
-    {
-      list: 'Ventures - coming soon',
-      url: "/ventures",
-      icon: <MdOutlineTravelExplore />
     },
     {
       list: 'Blog',
