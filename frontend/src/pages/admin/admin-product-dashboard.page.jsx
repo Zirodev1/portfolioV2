@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { toast } from 'react-hot-toast';
 import AdminLayout from '../../components/admin/AdminLayout';
 import ProductListItem from '../../components/admin/products/ProductListItem';
-import { showNotification } from '../../utils/notifications';
 
 const AdminProductDashboard = () => {
   const [products, setProducts] = useState([]);
@@ -70,19 +70,13 @@ const AdminProductDashboard = () => {
         if (response.data.success) {
           // Remove product from state
           setProducts(products.filter(p => p._id !== productId));
-          showNotification({
-            type: 'success',
-            message: 'Product deleted successfully!'
-          });
+          toast.success('Product deleted successfully!');
         } else {
           throw new Error(response.data.error || 'Failed to delete product');
         }
       } catch (error) {
         console.error('Error deleting product:', error);
-        showNotification({
-          type: 'error',
-          message: 'Error deleting product. Please try again.'
-        });
+        toast.error('Error deleting product. Please try again.');
       }
     }
   };
@@ -103,16 +97,10 @@ const AdminProductDashboard = () => {
         setProducts(products.filter(p => !selectedProducts.includes(p._id)));
         setSelectedProducts([]);
         
-        showNotification({
-          type: 'success',
-          message: 'Products deleted successfully!'
-        });
+        toast.success(`${selectedProducts.length} products deleted successfully!`);
       } catch (error) {
         console.error('Error deleting products:', error);
-        showNotification({
-          type: 'error',
-          message: 'Error deleting products. Please try again.'
-        });
+        toast.error('Error deleting products. Please try again.');
       }
     }
   };

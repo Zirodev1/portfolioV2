@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
 const ProductListItem = ({ product, isSelected, onSelect, onDelete }) => {
+  console.log('Product in list item:', product._id, product.title);
+
   const getStatusBadgeClass = (status) => {
     switch (status) {
       case 'published':
@@ -96,7 +98,7 @@ const ProductListItem = ({ product, isSelected, onSelect, onDelete }) => {
             </svg>
           </button>
           <Link
-            to={`/admin/products/files/${product._id}`}
+            to={`/admin/products/edit/${product._id}#files`}
             className="text-green-400 hover:text-green-300"
             title="Manage Files"
           >

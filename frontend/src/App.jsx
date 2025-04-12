@@ -4,6 +4,7 @@ import {
   Route,
 } from "react-router-dom";
 import { createContext, useState, useEffect } from "react";
+import { Toaster } from "react-hot-toast";
 
 import HomePage from "./pages/home.page";
 import ContactPage from "./pages/contact.page";
@@ -18,6 +19,7 @@ import ProfilePage from "./pages/profile.page";
 
 // Admin pages
 import AdminProductDashboard from "./pages/admin/admin-product-dashboard.page";
+import ProductFormPage from "./pages/admin/product-form.page";
 // import AdminDashboard from "./pages/admin/admin-dashboard.page";
 import AdminBlogDashboard from "./pages/admin/admin-blog-dashboard.page";
 // import AdminMediaLibrary from "./pages/admin/admin-media-library.page";
@@ -61,6 +63,25 @@ function App() {
   return (
     <UserContext.Provider value={{ userAuth, setUserAuth }}>
       <Router>
+        <Toaster 
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: '#333',
+              color: '#fff',
+            },
+            success: {
+              style: {
+                background: '#1E3A8A',
+              },
+            },
+            error: {
+              style: {
+                background: '#991B1B',
+              },
+            },
+          }}
+        />
         <Routes>
           {/* Public Routes */}
           <Route path="/" element={<HomePage/>} />
@@ -80,6 +101,8 @@ function App() {
           {/* Admin Routes - In a real app, these would be wrapped with AuthGuard */}
           {/* <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} /> */}
           <Route path="/admin/products" element={<AdminProductDashboard />} />
+          <Route path="/admin/products/new" element={<ProductFormPage />} />
+          <Route path="/admin/products/edit/:id" element={<ProductFormPage />} />
           <Route path="/admin/blog" element={<AdminBlogDashboard />} />
           {/* <Route path="/admin/media" element={<AuthGuard><AdminMediaLibrary /></AuthGuard>} /> */}
           {/* <Route path="/admin/settings" element={<AuthGuard><AdminSettings /></AuthGuard>} /> */}
