@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 
-const AdminSidebar = ({ activeMenu }) => {
+const AdminSidebar = ({ activeMenu, isOpen, toggleSidebar }) => {
   const menuItems = [
     {
       id: 'dashboard',
@@ -57,9 +57,17 @@ const AdminSidebar = ({ activeMenu }) => {
   ];
 
   return (
-    <div className="w-64 h-full bg-gray-800 border-r border-gray-700">
-      <div className="p-6 border-b border-gray-700">
+    <div className={`fixed lg:static left-0 top-0 h-screen bg-gray-800 border-r border-gray-700 z-30 transition-all duration-300 ${isOpen ? 'w-64 translate-x-0' : 'w-0 -translate-x-full lg:w-64 lg:translate-x-0'} overflow-hidden`}>
+      <div className="p-6 border-b border-gray-700 flex justify-between items-center">
         <h1 className="text-xl font-bold text-white">Admin Dashboard</h1>
+        <button 
+          className="lg:hidden text-gray-400 hover:text-white"
+          onClick={toggleSidebar}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
       </div>
       <nav className="mt-4">
         <ul>
@@ -70,6 +78,11 @@ const AdminSidebar = ({ activeMenu }) => {
                 className={`flex items-center px-6 py-3 text-gray-300 hover:bg-gray-700 hover:text-white ${
                   activeMenu === item.id ? 'bg-gray-700 text-white' : ''
                 }`}
+                onClick={() => {
+                  if (window.innerWidth < 1024) {
+                    toggleSidebar();
+                  }
+                }}
               >
                 <span className="mr-3">{item.icon}</span>
                 {item.name}
@@ -78,7 +91,7 @@ const AdminSidebar = ({ activeMenu }) => {
           ))}
         </ul>
       </nav>
-      <div className="absolute bottom-0 w-64 border-t border-gray-700 p-4">
+      <div className="absolute bottom-0 w-full border-t border-gray-700 p-4">
         <Link to="/" className="flex items-center text-gray-400 hover:text-white">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 15l-3-3m0 0l3-3m-3 3h8M3 12a9 9 0 1118 0 9 9 0 01-18 0z" />
@@ -91,7 +104,9 @@ const AdminSidebar = ({ activeMenu }) => {
 };
 
 AdminSidebar.propTypes = {
-  activeMenu: PropTypes.string.isRequired
+  activeMenu: PropTypes.string.isRequired,
+  isOpen: PropTypes.bool.isRequired,
+  toggleSidebar: PropTypes.func.isRequired
 };
 
 export default AdminSidebar;

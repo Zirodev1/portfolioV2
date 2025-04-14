@@ -2,7 +2,7 @@ const Product = require('../models/Product');
 const { generateUniqueSlug } = require('../utils/slugify');
 const aws = require('../config/aws');
 const s3 = aws.s3;
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'portfolio-templates-zirodev';
+const BUCKET_NAME = process.env.AWS_BUCKET;
 
 /**
  * @desc    Get all products with filtering and sorting
@@ -89,6 +89,37 @@ const getProductBySlug = async (req, res) => {
     });
   } catch (error) {
     console.error('Error fetching product:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Server error'
+    });
+  }
+};
+
+/**
+ * @desc    Get a single product by ID
+ * @route   GET /api/products/by-id/:id
+ * @access  Private/Admin
+ */
+const getProductById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const product = await Product.findById(id);
+    
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        error: 'Product not found'
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: product
+    });
+  } catch (error) {
+    console.error('Error fetching product by ID:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Server error'
@@ -237,6 +268,7 @@ const deleteProduct = async (req, res) => {
 const uploadProductFile = async (req, res) => {
   try {
     const { id } = req.params;
+    console.log('Starting file upload for product ID:', id);
     
     // Check if file exists in request
     if (!req.file) {
@@ -245,6 +277,20 @@ const uploadProductFile = async (req, res) => {
         error: 'Please upload a file'
       });
     }
+    
+    console.log('File info:', {
+      originalname: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+    
+    // Verify AWS configuration
+    console.log('AWS Config:', {
+      region: process.env.AWS_REGION,
+      bucket: BUCKET_NAME,
+      hasAccessKey: !!process.env.AWS_ACCESS_KEY_ID,
+      hasSecretKey: !!process.env.AWS_SECRET_ACCESS_KEY
+    });
     
     // Find product
     const product = await Product.findById(id);
@@ -256,6 +302,8 @@ const uploadProductFile = async (req, res) => {
       });
     }
     
+    console.log('Found product:', product.title);
+    
     // Prepare S3 upload parameters
     const fileKey = `products/${id}/${Date.now()}-${req.file.originalname}`;
     const uploadParams = {
@@ -265,53 +313,70 @@ const uploadProductFile = async (req, res) => {
       ContentType: req.file.mimetype
     };
     
-    // Upload file to S3
-    const uploadResult = await s3.upload(uploadParams).promise();
+    console.log('Attempting to upload file to S3 with params:', {
+      Bucket: uploadParams.Bucket,
+      Key: uploadParams.Key,
+      ContentType: uploadParams.ContentType
+    });
     
-    // Delete old file if it exists
-    if (product.downloadFile && product.downloadFile.key) {
-      const deleteParams = {
-        Bucket: BUCKET_NAME,
-        Key: product.downloadFile.key
-      };
+    try {
+      // Upload file to S3
+      const uploadResult = await s3.upload(uploadParams).promise();
+      console.log('S3 upload successful:', uploadResult.Location);
       
-      try {
-        await s3.deleteObject(deleteParams).promise();
-        console.log(`Deleted old file from S3: ${product.downloadFile.key}`);
-      } catch (s3Error) {
-        console.error('Error deleting old file from S3:', s3Error);
-        // Continue even if old file deletion fails
-      }
-    }
-    
-    // Update product with file info
-    product.downloadFile = {
-      key: fileKey,
-      filename: req.file.originalname,
-      size: req.file.size,
-      contentType: req.file.mimetype
-    };
-    
-    await product.save();
-    
-    res.json({
-      success: true,
-      data: {
-        product,
-        file: {
-          key: fileKey,
-          location: uploadResult.Location,
-          filename: req.file.originalname,
-          size: req.file.size,
-          contentType: req.file.mimetype
+      // Delete old file if it exists
+      if (product.downloadFile && product.downloadFile.key) {
+        const deleteParams = {
+          Bucket: BUCKET_NAME,
+          Key: product.downloadFile.key
+        };
+        
+        try {
+          await s3.deleteObject(deleteParams).promise();
+          console.log(`Deleted old file from S3: ${product.downloadFile.key}`);
+        } catch (s3Error) {
+          console.error('Error deleting old file from S3:', s3Error);
+          // Continue even if old file deletion fails
         }
       }
-    });
+      
+      // Update product with file info
+      product.downloadFile = {
+        key: fileKey,
+        filename: req.file.originalname,
+        size: req.file.size,
+        contentType: req.file.mimetype
+      };
+      
+      await product.save();
+      
+      res.json({
+        success: true,
+        data: {
+          product,
+          file: {
+            key: fileKey,
+            location: uploadResult.Location,
+            filename: req.file.originalname,
+            size: req.file.size,
+            contentType: req.file.mimetype
+          }
+        }
+      });
+    } catch (s3Error) {
+      console.error('S3 upload error details:', s3Error);
+      return res.status(500).json({
+        success: false,
+        error: 'S3 upload failed',
+        details: s3Error.message
+      });
+    }
   } catch (error) {
     console.error('Error uploading product file:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Server error'
+      error: error.message || 'Server error',
+      stack: process.env.NODE_ENV === 'production' ? null : error.stack
     });
   }
 };
@@ -382,6 +447,7 @@ const getDownloadUrl = async (req, res) => {
 module.exports = {
   getProducts,
   getProductBySlug,
+  getProductById,
   createProduct,
   updateProduct,
   deleteProduct,

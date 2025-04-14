@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 
 const FeaturedWorkSection = ({ projects }) => {
   return (
-    <section className="py-16 px-10 md:px-16 bg-gradient-to-b from-gray-800 to-gray-900">
+    <section className="py-16 px-10 md:px-16 ">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-10">
           <h2 className="text-2xl font-bold">Featured Work</h2>

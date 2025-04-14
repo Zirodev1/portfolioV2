@@ -1,27 +1,60 @@
 import { useParams, Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import SideBar from "../components/sidebar.component";
+import API from "../api/config";
 
 const ProductDetailPage = () => {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [error, setError] = useState(null);
 
-  // In a real application, you would fetch product data from an API or database
-  // For now, we'll use dummy data
+  // Fetch product data
   useEffect(() => {
-    // Simulating API call
-    setTimeout(() => {
-      // This would be replaced with your actual data fetching
-      const productData = {
+    const fetchProduct = async () => {
+      try {
+        // First try by slug
+        console.log(`Fetching product with slug/id: ${id}`);
+        let response = await API.get(`/api/products/${id}`);
+        
+        // If not found by slug, try by ID
+        if (!response.data.success) {
+          console.log(`Not found by slug, trying by ID: ${id}`);
+          response = await API.get(`/api/products/by-id/${id}`);
+        }
+        
+        if (response.data.success) {
+          console.log('Product data received:', response.data.data);
+          setProduct(response.data.data);
+        } else {
+          console.error('Failed to fetch product:', response.data.error);
+          setError('Product could not be loaded');
+          // Use fallback data if API call fails
+          setFallbackProductData();
+        }
+      } catch (error) {
+        console.error('Error fetching product:', error);
+        setError('Error loading product');
+        // Use fallback data if API call fails
+        setFallbackProductData();
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const setFallbackProductData = () => {
+      // Fallback dummy data
+      setProduct({
         id: id,
         title: "Compo Portfolio Template",
         platform: "FRAMER",
         price: 69,
         description: "A minimal and professional portfolio template designed specifically for creatives, designers, and digital professionals looking to showcase their work in a clean, modern format.",
-        thumbnail: "https://via.placeholder.com/600x400",
-        category: "Templates",
+        thumbnail: "https://images.unsplash.com/photo-1545235617-9465d2a55698?ixlib=rb-1.2.1&auto=format&fit=crop&w=600&q=80",
+        mainImage: "https://images.unsplash.com/photo-1545235617-9465d2a55698?ixlib=rb-1.2.1&auto=format&fit=crop&w=1200&q=80",
+        category: "Website Template",
         featured: true,
         bestseller: true,
         preview: "https://example.com/preview",
@@ -32,78 +65,49 @@ const ProductDetailPage = () => {
           "Responsive design that works on all devices",
           "Easy-to-customize sections and components",
           "Built with modern Framer features",
-          "Multiple portfolio layout options",
-          "Contact form integration",
-          "SEO optimized structure",
-          "Clean, minimalist design aesthetic",
-          "Dark and light mode options"
+          "Multiple portfolio layout options"
         ],
         includes: [
           "Framer template files",
           "Documentation and setup guide",
           "30 days of support",
-          "Free updates",
-          "Stock photos from preview (optional use)"
+          "Free updates"
         ],
-        mainImage: "https://via.placeholder.com/1200x800",
         images: [
-          "https://via.placeholder.com/800x600",
-          "https://via.placeholder.com/800x600",
-          "https://via.placeholder.com/800x600",
-          "https://via.placeholder.com/800x600"
-        ],
-        testimonials: [
-          {
-            quote: "This template saved me so much time! It was incredibly easy to customize and looks very professional.",
-            author: "Alex Chen",
-            role: "Graphic Designer"
-          },
-          {
-            quote: "The attention to detail in this template is outstanding. I've received numerous compliments on my new portfolio.",
-            author: "Sophia Williams",
-            role: "UI/UX Designer"
-          }
-        ],
-        faq: [
-          {
-            question: "Do I need coding knowledge to use this template?",
-            answer: "No, the template is designed to be customized directly in Framer without requiring any coding knowledge. However, basic familiarity with Framer will be helpful."
-          },
-          {
-            question: "Can I use this for client projects?",
-            answer: "The standard license allows you to use this template for one end product (either for yourself or a client). For multiple projects, you'll need to purchase additional licenses."
-          },
-          {
-            question: "What if I need help with customization?",
-            answer: "The template comes with comprehensive documentation. If you need additional help, I offer support via email. For more extensive customizations, I'm available for hire at an hourly rate."
-          }
-        ],
-        relatedProducts: [
-          {
-            id: "minimal-portfolio",
-            title: "Minimal Portfolio",
-            price: 59,
-            thumbnail: "https://via.placeholder.com/300x200"
-          },
-          {
-            id: "agency-site",
-            title: "Agency Site Template",
-            price: 79,
-            thumbnail: "https://via.placeholder.com/300x200"
-          },
-          {
-            id: "digital-dashboard",
-            title: "Digital Dashboard UI Kit",
-            price: 49,
-            thumbnail: "https://via.placeholder.com/300x200"
-          }
+          "https://images.unsplash.com/photo-1502945015378-0e284ca1a5be?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1517433670267-08bbd4be890f?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1555066931-4365d14bab8c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80"
         ]
-      };
-      
-      setProduct(productData);
-      setLoading(false);
-    }, 500);
+      });
+    };
+
+    fetchProduct();
   }, [id]);
+
+  const handleBuyNow = async (e) => {
+    e.preventDefault();
+    setIsCheckingOut(true);
+    
+    try {
+      const response = await API.post('/api/payments/create-checkout-session', {
+        productId: product._id || product.id // Use _id for real products, fallback to id for dummy data
+      });
+      
+      if (response.data.success) {
+        // Redirect to Stripe Checkout
+        window.location.href = response.data.data.url;
+      } else {
+        console.error('Failed to create checkout session:', response.data.error);
+        alert('Something went wrong. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert('Failed to process your request. Please try again later.');
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -123,7 +127,9 @@ const ProductDetailPage = () => {
         <div className="w-full flex items-center justify-center min-h-screen">
           <div className="text-center">
             <h2 className="text-2xl font-bold mb-4">Product Not Found</h2>
-            <p className="text-gray-400 mb-6">The product you're looking for doesn't exist or has been removed.</p>
+            <p className="text-gray-400 mb-6">
+              {error || "The product you're looking for doesn't exist or has been removed."}
+            </p>
             <Link 
               to="/store" 
               className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-md transition-colors"
@@ -152,7 +158,7 @@ const ProductDetailPage = () => {
                 />
               </div>
               <div className="grid grid-cols-4 gap-4">
-                {product.images.map((image, index) => (
+                {product.images && product.images.map((image, index) => (
                   <div key={index} className="rounded-lg overflow-hidden cursor-pointer">
                     <img 
                       src={image} 
@@ -183,12 +189,15 @@ const ProductDetailPage = () => {
               <div className="flex items-center mb-8">
                 <span className="text-3xl font-bold">${product.price}</span>
                 <div className="ml-6">
-                  <a 
-                    href="#" 
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-md transition-colors inline-block"
+                  <button 
+                    onClick={handleBuyNow}
+                    disabled={isCheckingOut}
+                    className={`bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-md transition-colors inline-block ${
+                      isCheckingOut ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
                   >
-                    Buy Now
-                  </a>
+                    {isCheckingOut ? 'Processing...' : 'Buy Now'}
+                  </button>
                 </div>
                 <div className="ml-3">
                   <a 
@@ -220,7 +229,7 @@ const ProductDetailPage = () => {
               </div>
               
               <div className="flex flex-wrap gap-2 mb-8">
-                {product.tags.map((tag, index) => (
+                {product.tags && product.tags.map((tag, index) => (
                   <span 
                     key={index} 
                     className="bg-gray-800 text-gray-200 px-3 py-1 rounded-full text-sm"
@@ -300,7 +309,7 @@ const ProductDetailPage = () => {
                     <div>
                       <h3 className="text-xl font-bold mb-6">What's Included</h3>
                       <ul className="space-y-3">
-                        {product.includes.map((item, index) => (
+                        {product.includes && product.includes.map((item, index) => (
                           <li key={index} className="flex items-start">
                             <svg className="w-5 h-5 text-green-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -319,7 +328,7 @@ const ProductDetailPage = () => {
                 <div>
                   <h3 className="text-xl font-bold mb-8">Key Features</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {product.features.map((feature, index) => (
+                    {product.features && product.features.map((feature, index) => (
                       <div key={index} className="flex items-start">
                         <svg className="w-5 h-5 text-blue-500 mr-3 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -336,7 +345,7 @@ const ProductDetailPage = () => {
                 <div>
                   <h3 className="text-xl font-bold mb-8">Frequently Asked Questions</h3>
                   <div className="space-y-6">
-                    {product.faq.map((item, index) => (
+                    {product.faq && product.faq.map((item, index) => (
                       <div key={index} className="border border-gray-700 rounded-lg p-6">
                         <h4 className="text-lg font-medium mb-3">{item.question}</h4>
                         <p className="text-gray-300">{item.answer}</p>
@@ -351,7 +360,7 @@ const ProductDetailPage = () => {
                 <div>
                   <h3 className="text-xl font-bold mb-8">Customer Reviews</h3>
                   <div className="space-y-8">
-                    {product.testimonials.map((testimonial, index) => (
+                    {product.testimonials && product.testimonials.map((testimonial, index) => (
                       <div key={index} className="bg-gray-800 rounded-lg p-6">
                         <div className="flex items-center mb-4">
                           <div className="flex text-yellow-400">
@@ -379,7 +388,7 @@ const ProductDetailPage = () => {
           <div className="mb-16">
             <h3 className="text-2xl font-bold mb-8">You Might Also Like</h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {product.relatedProducts.map((related) => (
+              {product.relatedProducts && product.relatedProducts.map((related) => (
                 <div key={related.id} className="bg-gray-800 rounded-lg overflow-hidden">
                   <Link to={`/products/${related.id}`} className="block">
                     <img 
@@ -404,12 +413,15 @@ const ProductDetailPage = () => {
               <p className="text-gray-300 mb-6">
                 Get started with {product.title} today and create a stunning portfolio that stands out.
               </p>
-              <a 
-                href="#" 
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-md transition-colors inline-block"
+              <button 
+                onClick={handleBuyNow}
+                disabled={isCheckingOut}
+                className={`bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-8 rounded-md transition-colors inline-block ${
+                  isCheckingOut ? 'opacity-70 cursor-not-allowed' : ''
+                }`}
               >
-                Buy Now for ${product.price}
-              </a>
+                {isCheckingOut ? 'Processing...' : `Buy Now for $${product.price}`}
+              </button>
             </div>
           </div>
         </div>

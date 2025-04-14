@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import SideBar from '../components/sidebar.component';
 import ProductCard from '../components/ProductCard';
-import { getProducts } from '../services/productService';
+import API from '../api/config'; // Use our API config instead of the service directly
 
 const StorePage = () => {
 
@@ -15,7 +15,7 @@ const StorePage = () => {
 
   // Pagination and filtering
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(1); // Default to 1 page
   const [searchTerm, setSearchTerm] = useState('');
 
 
@@ -44,22 +44,34 @@ const StorePage = () => {
           params.search = searchTerm;
         }
         
-        // Fetch products from API
-        const response = await getProducts(params);
+        // Fetch products from API directly
+        const response = await API.get('/api/products', { params });
         
-        setProducts(response.data);
-        setTotalPages(response.pagination.totalPages);
-        
-        // Extract unique categories
-        if (response.data.length > 0) {
-          const uniqueCategories = [...new Set(response.data.map(product => product.category))];
-          setCategories(['All', ...uniqueCategories]);
+        if (response.data && response.data.success) {
+          setProducts(response.data.data || []);
+          
+          // Handle pagination - if pagination data exists, use it, otherwise default to 1 page
+          const totalCount = response.data.count || 0;
+          const limit = params.limit || 9;
+          const calculatedTotalPages = Math.ceil(totalCount / limit) || 1;
+          setTotalPages(calculatedTotalPages);
+          
+          // Extract unique categories from products if available
+          if (response.data.data && response.data.data.length > 0) {
+            const uniqueCategories = [...new Set(response.data.data.map(product => product.category))];
+            setCategories(['All', ...uniqueCategories.filter(Boolean)]);
+          }
+        } else {
+          setProducts([]);
+          setTotalPages(1);
         }
         
         setError(null);
       } catch (err) {
-        setError(err.message);
+        setError(err.message || 'An error occurred fetching products');
         console.error('Error fetching products:', err);
+        setProducts([]);
+        setTotalPages(1);
       } finally {
         setLoading(false);
       }

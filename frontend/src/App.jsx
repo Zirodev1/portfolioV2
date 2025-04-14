@@ -16,11 +16,14 @@ import ProductDetailPage from "./pages/product-detail.page";
 import BlogPage from "./pages/blog.page";
 import BlogPostPage from "./pages/blog-post.page";
 import ProfilePage from "./pages/profile.page";
+import CheckoutSuccessPage from "./pages/CheckoutPage";
 
 // Admin pages
 import AdminProductDashboard from "./pages/admin/admin-product-dashboard.page";
 import ProductFormPage from "./pages/admin/product-form.page";
-// import AdminDashboard from "./pages/admin/admin-dashboard.page";
+import AdminProjectDashboard from "./pages/admin/admin-project-dashboard.page";
+import ProjectFormPage from "./pages/admin/project-form.page";
+import AdminDashboard from "./pages/admin/admin-dashboard.page";
 import AdminBlogDashboard from "./pages/admin/admin-blog-dashboard.page";
 // import AdminMediaLibrary from "./pages/admin/admin-media-library.page";
 // import AdminSettings from "./pages/admin/admin-settings.page";
@@ -95,14 +98,20 @@ function App() {
           <Route path="/blog/:slug" element={<BlogPostPage />} />
           <Route path="/profile/:username" element={<ProfilePage />} />
           
+          {/* Checkout and Purchase Routes */}
+          <Route path="/checkout/success" element={<CheckoutSuccessPage />} />
+          
           {/* Auth Routes */}
           {/* <Route path="/login" element={<LoginPage />} /> */}
           
           {/* Admin Routes - In a real app, these would be wrapped with AuthGuard */}
-          {/* <Route path="/admin" element={<AuthGuard><AdminDashboard /></AuthGuard>} /> */}
+          <Route path="/admin" element={<AdminDashboard />} />
           <Route path="/admin/products" element={<AdminProductDashboard />} />
           <Route path="/admin/products/new" element={<ProductFormPage />} />
           <Route path="/admin/products/edit/:id" element={<ProductFormPage />} />
+          <Route path="/admin/projects" element={<AdminProjectDashboard />} />
+          <Route path="/admin/projects/new" element={<ProjectFormPage />} />
+          <Route path="/admin/projects/edit/:id" element={<ProjectFormPage />} />
           <Route path="/admin/blog" element={<AdminBlogDashboard />} />
           {/* <Route path="/admin/media" element={<AuthGuard><AdminMediaLibrary /></AuthGuard>} /> */}
           {/* <Route path="/admin/settings" element={<AuthGuard><AdminSettings /></AuthGuard>} /> */}

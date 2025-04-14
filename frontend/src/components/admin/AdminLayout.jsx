@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import AdminHeader from './AdminHeader';
 import AdminSidebar from './AdminSidebar';
+import AdminHeader from './AdminHeader';
 
-const AdminLayout = ({ children, title = "Admin Dashboard", activeMenu = "dashboard" }) => {
+const AdminLayout = ({ children, title }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const toggleSidebar = () => {
@@ -11,11 +11,13 @@ const AdminLayout = ({ children, title = "Admin Dashboard", activeMenu = "dashbo
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
-      <AdminHeader toggleSidebar={toggleSidebar} title={title} />
-      <div className="flex">
-        <AdminSidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} activeMenu={activeMenu} />
-        <main className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-0'}`}>
+    <div className="flex h-screen bg-gray-900 text-white">
+      <AdminSidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+      
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <AdminHeader title={title} toggleSidebar={toggleSidebar} />
+        
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-900 p-6">
           {children}
         </main>
       </div>
@@ -25,8 +27,7 @@ const AdminLayout = ({ children, title = "Admin Dashboard", activeMenu = "dashbo
 
 AdminLayout.propTypes = {
   children: PropTypes.node.isRequired,
-  title: PropTypes.string,
-  activeMenu: PropTypes.string
+  title: PropTypes.string.isRequired
 };
 
 export default AdminLayout; 

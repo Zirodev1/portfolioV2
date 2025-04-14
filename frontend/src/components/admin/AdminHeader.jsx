@@ -1,6 +1,6 @@
 import PropTypes from 'prop-types';
 
-const AdminHeader = ({ title }) => {
+const AdminHeader = ({ title, toggleSidebar }) => {
   // This would come from authentication in a real implementation
   const adminUser = {
     name: 'Lee Acevedo',
@@ -10,7 +10,18 @@ const AdminHeader = ({ title }) => {
   return (
     <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-white">{title}</h1>
+        <div className="flex items-center">
+          <button 
+            className="mr-4 text-gray-400 hover:text-white lg:hidden"
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold text-white">{title}</h1>
+        </div>
         
         <div className="flex items-center">
           <div className="relative mr-4">
@@ -37,7 +48,8 @@ const AdminHeader = ({ title }) => {
 };
 
 AdminHeader.propTypes = {
-  title: PropTypes.string.isRequired
+  title: PropTypes.string.isRequired,
+  toggleSidebar: PropTypes.func.isRequired
 };
 
 export default AdminHeader;

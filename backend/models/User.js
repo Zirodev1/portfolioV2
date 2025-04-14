@@ -30,9 +30,13 @@ const userSchema = new mongoose.Schema(
     },
     role: {
       type: String,
-      enum: ['admin', 'editor'],
+      enum: ['admin', 'editor', 'customer'],
       default: 'admin',
     },
+    purchases: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product'
+    }],
     resetPasswordToken: String,
     resetPasswordExpire: Date,
   },

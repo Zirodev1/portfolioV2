@@ -17,17 +17,35 @@ const productRoutes = require('./routes/productRoutes');
 const blogRoutes = require('./routes/blogRoutes');
 const userRoutes = require('./routes/userRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const projectRoutes = require('./routes/projectRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT;
 
 // Connect to database
 connectDB();
 
 // Middleware
-app.use(cors());
-app.use(express.json());
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
+
+// Special handling for Stripe webhook route
+const stripeWebhookPath = '/api/payments/webhook';
+
+// Parse JSON for all routes except the Stripe webhook
+app.use((req, res, next) => {
+  if (req.originalUrl === stripeWebhookPath) {
+    // For Stripe webhook, use raw body parser
+    express.raw({ type: 'application/json' })(req, res, next);
+  } else {
+    // For all other routes, use JSON parser
+    express.json()(req, res, next);
+  }
+});
 
 // Logging in development
 if (NODE_ENV === 'development') {
@@ -91,6 +109,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/blog', blogRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Log routes for debugging
 console.log('Registered routes:');
@@ -98,6 +118,8 @@ console.log('- /api/products');
 console.log('- /api/blog');
 console.log('- /api/users');
 console.log('- /api/upload');
+console.log('- /api/projects');
+console.log('- /api/payments');
 
 // API health check
 app.get('/api/health', (req, res) => {
